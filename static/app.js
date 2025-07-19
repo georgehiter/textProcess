@@ -3,7 +3,7 @@ const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue
 createApp({
     setup() {
         // 响应式数据
-        const currentStep = ref(1)
+        // const currentStep = ref(1)  // 注释掉步骤控制
         const uploadedFile = ref(null)
         const isDragOver = ref(false)
         const taskId = ref(null)
@@ -14,16 +14,18 @@ createApp({
         const statusMessage = ref('')
         const error = ref('')
         const processingTime = ref(0)
-        const imageCount = ref(0)
+        // const imageCount = ref(0)  // 注释掉图片计数
         const textPreview = ref('')
         const gpuStatus = ref(null)
+        const isConverting = ref(false)
+        const showResult = ref(false)
 
         // 转换配置
         const config = reactive({
-            output_format: 'markdown',
-            use_llm: false,
+            output_format: 'markdown',  // 固定为markdown格式
+            // use_llm: false,        // 前端隐藏，后端保持
             force_ocr: false,
-            save_images: true,
+            // save_images: true,     // 前端隐藏，后端保持
             format_lines: true,
             disable_image_extraction: false,
             gpu_config: {
@@ -133,7 +135,7 @@ createApp({
 
                 if (result.success) {
                     taskId.value = result.task_id
-                    currentStep.value = 2
+                    // currentStep.value = 2  // 删除步骤控制
                 } else {
                     showError(result.message || '文件上传失败')
                 }
@@ -143,9 +145,37 @@ createApp({
         }
 
         const startConversion = async () => {
-            if (!taskId.value) return
+            if (!uploadedFile.value) {
+                showError('请先选择PDF文件')
+                return
+            }
 
             try {
+                isConverting.value = true  // 设置转换状态
+                showResult.value = false   // 隐藏结果
+
+                // 如果没有taskId，先上传文件
+                if (!taskId.value) {
+                    const formData = new FormData()
+                    formData.append('file', uploadedFile.value)
+
+                    const uploadResponse = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    })
+
+                    const uploadResult = await uploadResponse.json()
+
+                    if (!uploadResult.success) {
+                        isConverting.value = false
+                        showError(uploadResult.message || '文件上传失败')
+                        return
+                    }
+
+                    taskId.value = uploadResult.task_id
+                }
+
+                // 开始转换
                 const response = await fetch('/api/convert', {
                     method: 'POST',
                     headers: {
@@ -153,19 +183,24 @@ createApp({
                     },
                     body: JSON.stringify({
                         task_id: taskId.value,
-                        config: config
+                        config: {
+                            ...config,
+                            use_llm: false,      // 确保后端收到false
+                            save_images: false   // 确保后端收到false
+                        }
                     })
                 })
 
                 const result = await response.json()
 
                 if (result.success) {
-                    currentStep.value = 3
                     startProgressPolling()
                 } else {
+                    isConverting.value = false  // 重置状态
                     showError(result.message || '转换启动失败')
                 }
             } catch (err) {
+                isConverting.value = false  // 重置状态
                 showError('转换启动失败: ' + err.message)
             }
         }
@@ -188,9 +223,11 @@ createApp({
 
                     if (data.status === 'completed') {
                         clearInterval(progressTimer)
+                        isConverting.value = false  // 重置转换状态
                         await getResult()
                     } else if (data.status === 'failed') {
                         clearInterval(progressTimer)
+                        isConverting.value = false  // 重置转换状态
                         showError(data.error || '转换失败')
                     }
                 } catch (err) {
@@ -206,9 +243,10 @@ createApp({
 
                 if (result.success) {
                     processingTime.value = result.processing_time || 0
-                    imageCount.value = result.image_paths?.length || 0
+                    // imageCount.value = result.image_paths?.length || 0  // 注释掉图片计数
                     textPreview.value = result.text_preview || ''
-                    currentStep.value = 4
+                    showResult.value = true  // 显示结果
+                    // currentStep.value = 4  // 删除步骤控制
                 } else {
                     showError(result.error || '获取结果失败')
                 }
@@ -239,7 +277,7 @@ createApp({
 
         const startNewConversion = () => {
             // 重置状态
-            currentStep.value = 1
+            // currentStep.value = 1  // 删除步骤控制
             uploadedFile.value = null
             taskId.value = null
             progress.value = 0
@@ -249,14 +287,16 @@ createApp({
             statusMessage.value = ''
             error.value = ''
             processingTime.value = 0
-            imageCount.value = 0
+            // imageCount.value = 0  // 注释掉图片计数
             textPreview.value = ''
+            isConverting.value = false
+            showResult.value = false
 
             // 重置配置
             config.output_format = 'markdown'
-            config.use_llm = false
+            // config.use_llm = false  // 注释掉
             config.force_ocr = false
-            config.save_images = true
+            // config.save_images = true  // 注释掉
             config.format_lines = true
             config.disable_image_extraction = false
             config.gpu_config.enabled = gpuStatus.value?.available || false
@@ -301,7 +341,7 @@ createApp({
         })
 
         return {
-            currentStep,
+            // currentStep,  // 注释掉步骤控制
             uploadedFile,
             isDragOver,
             taskId,
@@ -312,11 +352,13 @@ createApp({
             statusMessage,
             error,
             processingTime,
-            imageCount,
+            // imageCount,  // 注释掉图片计数
             textPreview,
             gpuStatus,
             config,
             renderedPreview,
+            isConverting,
+            showResult,
             formatFileSize,
             handleDragOver,
             handleDragLeave,

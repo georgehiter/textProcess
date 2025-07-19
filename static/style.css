@@ -56,75 +56,43 @@ body {
     color: var(--text-secondary);
 }
 
-/* 步骤指示器 */
-.step-indicator {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 3rem;
-    gap: 1rem;
+/* 步骤指示器样式（已删除，保留注释） */
+/* .step-indicator { ... } */
+/* .step { ... } */
+/* .step-number { ... } */
+/* .step-label { ... } */
+/* .step-line { ... } */
+
+/* 单页面section样式 */
+.section {
+    background-color: var(--surface-color);
+    border-radius: var(--radius);
+    padding: 2rem;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 2rem;
 }
 
-.step {
+.section h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
     display: flex;
-    flex-direction: column;
     align-items: center;
     gap: 0.5rem;
-    opacity: 0.5;
-    transition: var(--transition);
 }
 
-.step.active {
-    opacity: 1;
+/* 转换控制区域样式 */
+.action-section {
+    text-align: center;
+    padding: 1.5rem;
 }
 
-.step.completed {
-    opacity: 1;
+.action-section .btn {
+    margin: 0 0.5rem;
 }
 
-.step-number {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: var(--secondary-color);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    transition: var(--transition);
-}
-
-.step.active .step-number {
-    background-color: var(--primary-color);
-}
-
-.step.completed .step-number {
-    background-color: var(--success-color);
-}
-
-.step-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-
-.step.active .step-label {
-    color: var(--text-primary);
-}
-
-.step-line {
-    width: 60px;
-    height: 2px;
-    background-color: var(--border-color);
-    transition: var(--transition);
-}
-
-.step-line.active {
-    background-color: var(--primary-color);
-}
-
-/* 步骤内容 */
+/* 步骤内容样式（保留兼容性） */
 .step-content {
     background-color: var(--surface-color);
     border-radius: var(--radius);
