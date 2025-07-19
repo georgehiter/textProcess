@@ -8,10 +8,9 @@ createApp({
         const isDragOver = ref(false)
         const taskId = ref(null)
         const progress = ref(0)
-        const currentStage = ref('')
-        const elapsedTime = ref('')
-        const estimatedTime = ref('')
-        const statusMessage = ref('')
+        const startTime = ref(null)
+        const currentTime = ref(Date.now())  // 当前时间，用于触发更新
+        const finalTime = ref(null)  // 转换完成时的最终时间
         const error = ref('')
         const processingTime = ref(0)
         // const imageCount = ref(0)  // 注释掉图片计数
@@ -38,11 +37,30 @@ createApp({
 
         // 进度轮询定时器
         let progressTimer = null
+        // 时间更新定时器
+        let timeUpdateTimer = null
 
         // 计算属性
         const renderedPreview = computed(() => {
             if (!textPreview.value) return ''
             return marked.parse(textPreview.value)
+        })
+
+        // 计算已用时间
+        const elapsedTime = computed(() => {
+            if (!startTime.value) return '0.0秒'
+
+            // 优先使用最终时间，如果没有则使用当前时间
+            const endTime = finalTime.value || currentTime.value
+            const elapsed = (endTime - startTime.value) / 1000
+
+            if (elapsed < 60) {
+                return `${elapsed.toFixed(1)}秒`
+            } else if (elapsed < 3600) {
+                return `${(elapsed / 60).toFixed(1)}分钟`
+            } else {
+                return `${(elapsed / 3600).toFixed(1)}小时`
+            }
         })
 
         // 方法
@@ -153,6 +171,16 @@ createApp({
             try {
                 isConverting.value = true  // 设置转换状态
                 showResult.value = false   // 隐藏结果
+                startTime.value = Date.now()  // 记录开始时间
+
+                // 启动时间更新定时器
+                if (timeUpdateTimer) {
+                    clearInterval(timeUpdateTimer)
+                }
+                timeUpdateTimer = setInterval(() => {
+                    // 更新当前时间，触发elapsedTime重新计算
+                    currentTime.value = Date.now()
+                }, 1000)
 
                 // 如果没有taskId，先上传文件
                 if (!taskId.value) {
@@ -216,17 +244,23 @@ createApp({
                     const data = await response.json()
 
                     progress.value = data.progress || 0
-                    currentStage.value = data.current_stage || ''
-                    elapsedTime.value = data.elapsed_time || ''
-                    estimatedTime.value = data.estimated_time || ''
-                    statusMessage.value = data.message || ''
 
                     if (data.status === 'completed') {
                         clearInterval(progressTimer)
+                        if (timeUpdateTimer) {
+                            clearInterval(timeUpdateTimer)
+                            timeUpdateTimer = null
+                        }
+                        finalTime.value = Date.now()  // 记录完成时间
                         isConverting.value = false  // 重置转换状态
                         await getResult()
                     } else if (data.status === 'failed') {
                         clearInterval(progressTimer)
+                        if (timeUpdateTimer) {
+                            clearInterval(timeUpdateTimer)
+                            timeUpdateTimer = null
+                        }
+                        finalTime.value = Date.now()  // 记录失败时间
                         isConverting.value = false  // 重置转换状态
                         showError(data.error || '转换失败')
                     }
@@ -242,7 +276,7 @@ createApp({
                 const result = await response.json()
 
                 if (result.success) {
-                    processingTime.value = result.processing_time || 0
+                    // processingTime.value = result.processing_time || 0  // 不再需要后端时间
                     // imageCount.value = result.image_paths?.length || 0  // 注释掉图片计数
                     textPreview.value = result.text_preview || ''
                     showResult.value = true  // 显示结果
@@ -281,10 +315,8 @@ createApp({
             uploadedFile.value = null
             taskId.value = null
             progress.value = 0
-            currentStage.value = ''
-            elapsedTime.value = ''
-            estimatedTime.value = ''
-            statusMessage.value = ''
+            startTime.value = null
+            finalTime.value = null
             error.value = ''
             processingTime.value = 0
             // imageCount.value = 0  // 注释掉图片计数
@@ -308,6 +340,10 @@ createApp({
             if (progressTimer) {
                 clearInterval(progressTimer)
                 progressTimer = null
+            }
+            if (timeUpdateTimer) {
+                clearInterval(timeUpdateTimer)
+                timeUpdateTimer = null
             }
         }
 
@@ -346,10 +382,10 @@ createApp({
             isDragOver,
             taskId,
             progress,
-            currentStage,
+            startTime,
+            currentTime,
+            finalTime,
             elapsedTime,
-            estimatedTime,
-            statusMessage,
             error,
             processingTime,
             // imageCount,  // 注释掉图片计数

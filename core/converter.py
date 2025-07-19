@@ -114,15 +114,19 @@ class MarkerPDFConverter:
 
         try:
             # 阶段1: 初始化转换器
-            progress_callback(10, "初始化转换器", "正在准备转换环境...")
+            progress_callback(5)
             await asyncio.sleep(0.1)  # 让出控制权
 
-            # 阶段2: 执行转换
-            progress_callback(30, "解析PDF", "正在解析PDF文档...")
+            # 阶段2: 加载PDF文档
+            progress_callback(10)
+            await asyncio.sleep(0.1)
+
+            # 阶段3: 执行转换（这是最耗时的部分）
+            progress_callback(20)
             rendered = await asyncio.to_thread(self.converter, pdf_path)
 
-            # 阶段3: 提取结果
-            progress_callback(70, "提取结果", "正在提取转换结果...")
+            # 阶段4: 提取结果
+            progress_callback(60)
 
             if self.output_format == "markdown":
                 text, metadata, images = text_from_rendered(rendered)
@@ -132,30 +136,33 @@ class MarkerPDFConverter:
                 metadata = getattr(rendered, "metadata", {})
                 images = getattr(rendered, "images", {})
 
-            # 设置输出目录
+            # 阶段5: 设置输出目录
+            progress_callback(70)
             if output_dir is None:
                 output_dir = FileHandler.ensure_output_directory(task_id)
             else:
                 output_dir = Path(output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-            # 保存主要内容
-            progress_callback(85, "保存文件", "正在保存转换结果...")
+            # 阶段6: 保存主要内容
+            progress_callback(80)
             output_file = self._save_content(content, output_dir, Path(pdf_path).stem)
 
-            # 保存图片
+            # 阶段7: 保存图片
+            progress_callback(90)
             image_paths = []
             if self.save_images and images:
                 image_paths = self._save_images(images, output_dir)
 
-            # 保存元数据
+            # 阶段8: 保存元数据
+            progress_callback(95)
             metadata_file = self._save_metadata(metadata, output_dir)
 
             end_time = time.time()
             processing_time = end_time - start_time
 
-            # 完成任务
-            progress_callback(100, "转换完成", "PDF转换成功完成")
+            # 阶段9: 完成任务
+            progress_callback(100)
             progress_manager.complete_task(task_id, "转换完成")
 
             result = {

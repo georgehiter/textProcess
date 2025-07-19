@@ -85,14 +85,6 @@ class ProgressData(BaseModel):
     task_id: str
     status: str  # "uploading", "processing", "completed", "failed"
     progress: float = 0.0  # 0-100
-    current_stage: Optional[str] = None
-    stage_progress: float = 0.0
-    stage_current: int = 0
-    stage_total: int = 0
-    elapsed_time: Optional[str] = None
-    estimated_time: Optional[str] = None
-    processing_rate: Optional[str] = None
-    message: Optional[str] = None
     error: Optional[str] = None
 
 

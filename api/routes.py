@@ -163,14 +163,6 @@ async def get_progress(task_id: str):
         task_id=task_id,
         status=progress.get("status", "unknown"),
         progress=progress.get("progress", 0.0),
-        current_stage=progress.get("current_stage"),
-        stage_progress=progress.get("stage_progress", 0.0),
-        stage_current=progress.get("stage_current", 0),
-        stage_total=progress.get("stage_total", 0),
-        elapsed_time=progress.get("elapsed_time"),
-        estimated_time=progress.get("estimated_time"),
-        processing_rate=progress.get("processing_rate"),
-        message=progress.get("message"),
         error=progress.get("error"),
     )
 
