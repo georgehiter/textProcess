@@ -1,0 +1,55 @@
+[project]
+name = "pdf-converter"
+version = "0.1.0"
+description = "PDF转Markdown工具 - 基于marker库的Web界面"
+authors = [
+    {name = "GeorgeHit"}
+]
+license = {text = "mit"}
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "marker-pdf[full]>=1.8.2,<2.0.0",
+    "fastapi>=0.104.1,<1.0.0",
+    "uvicorn[standard]>=0.24.0,<1.0.0",
+    "python-multipart>=0.0.6,<1.0.0",
+    "aiofiles>=23.2.1,<24.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0,<8.0.0",
+    "pytest-asyncio>=0.21.0,<1.0.0",
+    "requests>=2.31.0,<3.0.0"
+]
+
+[project.scripts]
+pdf-converter = "main:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "pdf-converter"
+version = "0.1.0"
+description = "PDF转Markdown工具 - 基于marker库的Web界面"
+authors = ["GeorgeHit"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+marker-pdf = {extras = ["full"], version = "^1.8.2"}
+fastapi = "^0.104.1"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+python-multipart = "^0.0.6"
+aiofiles = "^23.2.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+pytest-asyncio = "^0.21.0"
+requests = "^2.31.0"
+
+[tool.poetry.scripts]
+pdf-converter = "main:main"

@@ -1,0 +1,285 @@
+const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue
+
+createApp({
+    setup() {
+        // 响应式数据
+        const currentStep = ref(1)
+        const uploadedFile = ref(null)
+        const isDragOver = ref(false)
+        const taskId = ref(null)
+        const progress = ref(0)
+        const currentStage = ref('')
+        const elapsedTime = ref('')
+        const estimatedTime = ref('')
+        const statusMessage = ref('')
+        const error = ref('')
+        const processingTime = ref(0)
+        const imageCount = ref(0)
+        const textPreview = ref('')
+
+        // 转换配置
+        const config = reactive({
+            output_format: 'markdown',
+            use_llm: false,
+            force_ocr: false,
+            save_images: true,
+            format_lines: true,
+            disable_image_extraction: false
+        })
+
+        // 进度轮询定时器
+        let progressTimer = null
+
+        // 计算属性
+        const renderedPreview = computed(() => {
+            if (!textPreview.value) return ''
+            return marked.parse(textPreview.value)
+        })
+
+        // 方法
+        const formatFileSize = (bytes) => {
+            if (bytes === 0) return '0 Bytes'
+            const k = 1024
+            const sizes = ['Bytes', 'KB', 'MB', 'GB']
+            const i = Math.floor(Math.log(bytes) / Math.log(k))
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+        }
+
+        const handleDragOver = (e) => {
+            e.preventDefault()
+            isDragOver.value = true
+        }
+
+        const handleDragLeave = (e) => {
+            e.preventDefault()
+            isDragOver.value = false
+        }
+
+        const handleDrop = (e) => {
+            e.preventDefault()
+            isDragOver.value = false
+
+            const files = e.dataTransfer.files
+            if (files.length > 0) {
+                const file = files[0]
+                if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+                    uploadedFile.value = file
+                } else {
+                    showError('请选择PDF文件')
+                }
+            }
+        }
+
+        const handleFileSelect = (e) => {
+            const file = e.target.files[0]
+            if (file) {
+                uploadedFile.value = file
+            }
+        }
+
+        const removeFile = () => {
+            uploadedFile.value = null
+            if (currentStep.value > 1) {
+                currentStep.value = 1
+            }
+        }
+
+        const uploadFile = async () => {
+            if (!uploadedFile.value) return
+
+            try {
+                const formData = new FormData()
+                formData.append('file', uploadedFile.value)
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+
+                const result = await response.json()
+
+                if (result.success) {
+                    taskId.value = result.task_id
+                    currentStep.value = 2
+                } else {
+                    showError(result.message || '文件上传失败')
+                }
+            } catch (err) {
+                showError('文件上传失败: ' + err.message)
+            }
+        }
+
+        const startConversion = async () => {
+            if (!taskId.value) return
+
+            try {
+                const response = await fetch('/api/convert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId.value,
+                        config: config
+                    })
+                })
+
+                const result = await response.json()
+
+                if (result.success) {
+                    currentStep.value = 3
+                    startProgressPolling()
+                } else {
+                    showError(result.message || '转换启动失败')
+                }
+            } catch (err) {
+                showError('转换启动失败: ' + err.message)
+            }
+        }
+
+        const startProgressPolling = () => {
+            if (progressTimer) {
+                clearInterval(progressTimer)
+            }
+
+            progressTimer = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/progress/${taskId.value}`)
+                    const data = await response.json()
+
+                    progress.value = data.progress || 0
+                    currentStage.value = data.current_stage || ''
+                    elapsedTime.value = data.elapsed_time || ''
+                    estimatedTime.value = data.estimated_time || ''
+                    statusMessage.value = data.message || ''
+
+                    if (data.status === 'completed') {
+                        clearInterval(progressTimer)
+                        await getResult()
+                    } else if (data.status === 'failed') {
+                        clearInterval(progressTimer)
+                        showError(data.error || '转换失败')
+                    }
+                } catch (err) {
+                    console.error('获取进度失败:', err)
+                }
+            }, 1000)
+        }
+
+        const getResult = async () => {
+            try {
+                const response = await fetch(`/api/result/${taskId.value}`)
+                const result = await response.json()
+
+                if (result.success) {
+                    processingTime.value = result.processing_time || 0
+                    imageCount.value = result.image_paths?.length || 0
+                    textPreview.value = result.text_preview || ''
+                    currentStep.value = 4
+                } else {
+                    showError(result.error || '获取结果失败')
+                }
+            } catch (err) {
+                showError('获取结果失败: ' + err.message)
+            }
+        }
+
+        const downloadResult = async () => {
+            if (!taskId.value) return
+
+            try {
+                const response = await fetch(`/api/download/${taskId.value}`)
+                const blob = await response.blob()
+
+                const url = window.URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = uploadedFile.value?.name?.replace('.pdf', '.md') || 'converted.md'
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                window.URL.revokeObjectURL(url)
+            } catch (err) {
+                showError('下载失败: ' + err.message)
+            }
+        }
+
+        const startNewConversion = () => {
+            // 重置所有状态
+            uploadedFile.value = null
+            taskId.value = null
+            progress.value = 0
+            currentStage.value = ''
+            elapsedTime.value = ''
+            estimatedTime.value = ''
+            statusMessage.value = ''
+            error.value = ''
+            processingTime.value = 0
+            imageCount.value = 0
+            textPreview.value = ''
+            currentStep.value = 1
+
+            // 清理定时器
+            if (progressTimer) {
+                clearInterval(progressTimer)
+                progressTimer = null
+            }
+        }
+
+        const showError = (message) => {
+            error.value = message
+            setTimeout(() => {
+                error.value = ''
+            }, 5000)
+        }
+
+        const clearError = () => {
+            error.value = ''
+        }
+
+        // 生命周期
+        onMounted(() => {
+            // 初始化marked配置
+            marked.setOptions({
+                highlight: function (code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        try {
+                            return hljs.highlight(code, { language: lang }).value
+                        } catch (err) { }
+                    }
+                    return hljs.highlightAuto(code).value
+                }
+            })
+        })
+
+        return {
+            currentStep,
+            uploadedFile,
+            isDragOver,
+            taskId,
+            progress,
+            currentStage,
+            elapsedTime,
+            estimatedTime,
+            statusMessage,
+            error,
+            processingTime,
+            imageCount,
+            textPreview,
+            config,
+            renderedPreview,
+            formatFileSize,
+            handleDragOver,
+            handleDragLeave,
+            handleDrop,
+            handleFileSelect,
+            removeFile,
+            uploadFile,
+            startConversion,
+            downloadResult,
+            startNewConversion,
+            showError,
+            clearError
+        }
+    }
+}).mount('#app') 
