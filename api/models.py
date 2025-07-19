@@ -13,6 +13,17 @@ class OutputFormat(str, Enum):
     chunks = "chunks"
 
 
+class GPUConfig(BaseModel):
+    """GPU配置模型"""
+
+    enabled: bool = Field(default=True, description="是否启用GPU加速")
+    devices: int = Field(default=1, ge=1, le=8, description="GPU设备数量")
+    workers: int = Field(default=4, ge=1, le=16, description="每个GPU的工作进程数")
+    memory_limit: float = Field(
+        default=0.8, ge=0.1, le=1.0, description="GPU内存使用限制(0.1-1.0)"
+    )
+
+
 class ConversionConfig(BaseModel):
     """转换配置模型"""
 
@@ -26,6 +37,21 @@ class ConversionConfig(BaseModel):
     disable_image_extraction: bool = Field(
         default=False, description="是否禁用图片提取"
     )
+    gpu_config: GPUConfig = Field(default_factory=GPUConfig, description="GPU加速配置")
+
+
+class GPUStatus(BaseModel):
+    """GPU状态模型"""
+
+    available: bool = Field(description="GPU是否可用")
+    device_count: int = Field(description="GPU设备数量")
+    device_name: Optional[str] = Field(description="GPU设备名称")
+    memory_total: Optional[float] = Field(description="GPU总内存(GB)")
+    memory_used: Optional[float] = Field(description="GPU已用内存(GB)")
+    memory_free: Optional[float] = Field(description="GPU可用内存(GB)")
+    cuda_version: Optional[str] = Field(description="CUDA版本")
+    pytorch_version: Optional[str] = Field(description="PyTorch版本")
+    current_config: GPUConfig = Field(description="当前GPU配置")
 
 
 class FileUploadResponse(BaseModel):

@@ -191,3 +191,5 @@ cache/
 uploads/ 
 
 .cursor/
+outputs/
+test_*.py

@@ -1,6 +1,7 @@
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
+import torch
 from api.models import (
     FileUploadResponse,
     ConversionRequest,
@@ -8,10 +9,13 @@ from api.models import (
     ConversionResult,
     ProgressData,
     HealthResponse,
+    GPUStatus,
+    GPUConfig,
 )
 from utils.file_handler import FileHandler
 from utils.progress import progress_manager
 from core.converter import convert_pdf_task
+from core.config import settings
 
 router = APIRouter()
 
@@ -20,6 +24,56 @@ router = APIRouter()
 async def health_check():
     """健康检查接口"""
     return HealthResponse()
+
+
+@router.get("/gpu-status", response_model=GPUStatus)
+async def get_gpu_status():
+    """获取GPU状态接口"""
+    try:
+        # 检查CUDA可用性
+        cuda_available = torch.cuda.is_available()
+        device_count = torch.cuda.device_count() if cuda_available else 0
+
+        # 获取GPU信息
+        device_name = None
+        memory_total = None
+        memory_used = None
+        memory_free = None
+
+        if cuda_available and device_count > 0:
+            device_name = torch.cuda.get_device_name(0)
+            memory_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            memory_allocated = torch.cuda.memory_allocated(0) / 1024**3
+            memory_reserved = torch.cuda.memory_reserved(0) / 1024**3
+            memory_used = memory_allocated
+            memory_free = memory_total - memory_reserved
+
+        # 获取版本信息
+        cuda_version = torch.version.cuda if cuda_available else None
+        pytorch_version = torch.__version__
+
+        # 获取当前GPU配置
+        current_config = GPUConfig(
+            enabled=settings.GPU_ENABLED,
+            devices=settings.GPU_DEVICES,
+            workers=settings.GPU_WORKERS,
+            memory_limit=settings.GPU_MEMORY_LIMIT,
+        )
+
+        return GPUStatus(
+            available=cuda_available,
+            device_count=device_count,
+            device_name=device_name,
+            memory_total=memory_total,
+            memory_used=memory_used,
+            memory_free=memory_free,
+            cuda_version=cuda_version,
+            pytorch_version=pytorch_version,
+            current_config=current_config,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取GPU状态失败: {str(e)}")
 
 
 @router.post("/upload", response_model=FileUploadResponse)
@@ -68,6 +122,18 @@ async def start_conversion(
             )
 
         pdf_path = str(pdf_files[0])
+
+        # 应用GPU配置
+        gpu_config = request.config.gpu_config
+        if gpu_config.enabled:
+            settings.GPU_ENABLED = True
+            settings.GPU_DEVICES = gpu_config.devices
+            settings.GPU_WORKERS = gpu_config.workers
+            settings.GPU_MEMORY_LIMIT = gpu_config.memory_limit
+            settings.apply_gpu_environment()
+        else:
+            settings.GPU_ENABLED = False
+            settings.apply_gpu_environment()
 
         # 在后台执行转换任务
         background_tasks.add_task(
@@ -199,13 +265,29 @@ async def download_result(task_id: str):
 async def delete_task(task_id: str):
     """删除任务接口"""
     try:
-        # 清理文件
-        FileHandler.cleanup_task_files(task_id)
+        # 删除上传的文件
+        upload_pattern = f"{task_id}_*"
+        for file_path in Path("uploads").glob(upload_pattern):
+            file_path.unlink()
 
-        # 清理进度信息
+        # 删除输出文件
+        output_dir = Path("outputs") / task_id
+        if output_dir.exists():
+            import shutil
+
+            shutil.rmtree(output_dir)
+
+        # 删除临时文件
+        temp_dir = Path("templates") / task_id
+        if temp_dir.exists():
+            import shutil
+
+            shutil.rmtree(temp_dir)
+
+        # 删除进度信息
         progress_manager.remove_task(task_id)
 
         return {"success": True, "message": "任务已删除"}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"删除任务失败: {str(e)}")

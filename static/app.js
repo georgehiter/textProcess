@@ -16,6 +16,7 @@ createApp({
         const processingTime = ref(0)
         const imageCount = ref(0)
         const textPreview = ref('')
+        const gpuStatus = ref(null)
 
         // 转换配置
         const config = reactive({
@@ -24,7 +25,13 @@ createApp({
             force_ocr: false,
             save_images: true,
             format_lines: true,
-            disable_image_extraction: false
+            disable_image_extraction: false,
+            gpu_config: {
+                enabled: true,
+                devices: 1,
+                workers: 4,
+                memory_limit: 0.8
+            }
         })
 
         // 进度轮询定时器
@@ -43,6 +50,32 @@ createApp({
             const sizes = ['Bytes', 'KB', 'MB', 'GB']
             const i = Math.floor(Math.log(bytes) / Math.log(k))
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+        }
+
+        const loadGPUStatus = async () => {
+            try {
+                const response = await fetch('/api/gpu-status')
+                const status = await response.json()
+                gpuStatus.value = status
+
+                // 如果GPU不可用，禁用GPU配置
+                if (!status.available) {
+                    config.gpu_config.enabled = false
+                }
+            } catch (err) {
+                console.error('获取GPU状态失败:', err)
+                gpuStatus.value = {
+                    available: false,
+                    device_count: 0,
+                    device_name: null,
+                    memory_total: null,
+                    memory_used: null,
+                    memory_free: null,
+                    cuda_version: null,
+                    pytorch_version: null,
+                    current_config: config.gpu_config
+                }
+            }
         }
 
         const handleDragOver = (e) => {
@@ -205,7 +238,8 @@ createApp({
         }
 
         const startNewConversion = () => {
-            // 重置所有状态
+            // 重置状态
+            currentStep.value = 1
             uploadedFile.value = null
             taskId.value = null
             progress.value = 0
@@ -217,7 +251,18 @@ createApp({
             processingTime.value = 0
             imageCount.value = 0
             textPreview.value = ''
-            currentStep.value = 1
+
+            // 重置配置
+            config.output_format = 'markdown'
+            config.use_llm = false
+            config.force_ocr = false
+            config.save_images = true
+            config.format_lines = true
+            config.disable_image_extraction = false
+            config.gpu_config.enabled = gpuStatus.value?.available || false
+            config.gpu_config.devices = 1
+            config.gpu_config.workers = 4
+            config.gpu_config.memory_limit = 0.8
 
             // 清理定时器
             if (progressTimer) {
@@ -239,7 +284,10 @@ createApp({
 
         // 生命周期
         onMounted(() => {
-            // 初始化marked配置
+            // 加载GPU状态
+            loadGPUStatus()
+
+            // 设置marked选项
             marked.setOptions({
                 highlight: function (code, lang) {
                     if (lang && hljs.getLanguage(lang)) {
@@ -266,6 +314,7 @@ createApp({
             processingTime,
             imageCount,
             textPreview,
+            gpuStatus,
             config,
             renderedPreview,
             formatFileSize,

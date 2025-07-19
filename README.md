@@ -10,12 +10,14 @@
 - 📊 **实时进度** - 显示详细的转换进度和时间估算
 - 🎯 **高质量转换** - 基于marker库，提供准确的PDF解析
 - 💾 **文件管理** - 自动文件清理和结果下载
+- 🔥 **GPU加速** - 支持CUDA GPU加速，大幅提升转换性能
 
 ## 技术栈
 
 ### 后端
 - **FastAPI** - 高性能异步Web框架
 - **marker-pdf** - PDF转换核心库
+- **PyTorch** - 深度学习框架，支持CUDA加速
 - **uvicorn** - ASGI服务器
 
 ### 前端
@@ -40,6 +42,89 @@ poetry run python main.py
 ### 3. 访问应用
 
 打开浏览器访问: http://localhost:8000
+
+## GPU加速配置
+
+### 系统要求
+- NVIDIA GPU (支持CUDA)
+- CUDA 12.8 或更高版本
+- PyTorch with CUDA support
+
+### 配置选项
+
+#### 方式一：环境变量配置（推荐）
+
+```bash
+# Windows CMD
+set MARKER_GPU_ENABLED=true
+set MARKER_GPU_DEVICES=1
+set MARKER_GPU_WORKERS=4
+set MARKER_GPU_MEMORY_LIMIT=0.8
+
+# Windows PowerShell
+$env:MARKER_GPU_ENABLED="true"
+$env:MARKER_GPU_DEVICES="1"
+$env:MARKER_GPU_WORKERS="4"
+$env:MARKER_GPU_MEMORY_LIMIT="0.8"
+
+# Linux/Mac
+export MARKER_GPU_ENABLED=true
+export MARKER_GPU_DEVICES=1
+export MARKER_GPU_WORKERS=4
+export MARKER_GPU_MEMORY_LIMIT=0.8
+```
+
+#### 方式二：修改配置文件
+
+编辑 `core/config.py` 中的GPU配置：
+
+```python
+# GPU配置
+GPU_ENABLED: bool = True      # 是否启用GPU加速
+GPU_DEVICES: int = 1          # GPU设备数量
+GPU_WORKERS: int = 4          # 每个GPU的工作进程数
+GPU_MEMORY_LIMIT: float = 0.8 # GPU内存使用限制（0.8表示使用80%）
+```
+
+### 配置参数说明
+
+| 参数 | 默认值 | 说明 | 范围 |
+|------|--------|------|------|
+| `GPU_ENABLED` | `true` | 是否启用GPU加速 | `true/false` |
+| `GPU_DEVICES` | `1` | GPU设备数量 | `1-8` |
+| `GPU_WORKERS` | `4` | 每个GPU的工作进程数 | `1-16` |
+| `GPU_MEMORY_LIMIT` | `0.8` | GPU内存使用限制 | `0.1-1.0` |
+
+### 性能优化建议
+
+1. **单GPU配置**（推荐）
+   ```bash
+   MARKER_GPU_DEVICES=1
+   MARKER_GPU_WORKERS=4
+   ```
+
+2. **多GPU配置**
+   ```bash
+   MARKER_GPU_DEVICES=2
+   MARKER_GPU_WORKERS=8
+   ```
+
+3. **内存优化**
+   ```bash
+   MARKER_GPU_MEMORY_LIMIT=0.7  # 使用70%GPU内存
+   ```
+
+### 验证GPU加速
+
+运行GPU测试脚本验证配置：
+
+```bash
+# 测试GPU可用性
+poetry run python test_gpu.py
+
+# 测试GPU配置
+poetry run python test_gpu_config.py
+```
 
 ## 使用说明
 
@@ -116,6 +201,8 @@ textProcess/
 ├── uploads/                # 上传文件存储
 ├── outputs/                # 转换结果存储
 ├── templates/              # 临时文件存储
+├── test_gpu.py            # GPU加速测试
+├── test_gpu_config.py     # GPU配置测试
 ├── requirements.txt        # 依赖列表
 └── README.md              # 项目文档
 ```
@@ -127,6 +214,7 @@ textProcess/
 - 允许的文件类型
 - 服务器端口和主机
 - CORS设置
+- **GPU加速配置**
 
 ### 转换配置
 - 输出格式选择
@@ -167,10 +255,16 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
    - 刷新页面重试
    - 检查网络连接
 
+4. **GPU加速不工作**
+   - 检查CUDA是否正确安装
+   - 验证PyTorch是否支持CUDA
+   - 运行 `python test_gpu.py` 诊断问题
+
 ### 日志查看
 应用运行时会输出详细的日志信息，包括：
 - 文件上传状态
 - 转换进度
+- GPU配置信息
 - 错误信息
 
 ## 许可证
@@ -182,6 +276,12 @@ MIT License
 欢迎提交Issue和Pull Request来改进这个项目。
 
 ## 更新日志
+
+### v1.1.0
+- 添加GPU加速支持
+- 集成CUDA配置选项
+- 优化转换性能
+- 添加GPU配置测试
 
 ### v1.0.0
 - 初始版本发布

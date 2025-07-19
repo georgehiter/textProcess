@@ -10,6 +10,7 @@ from marker.config.parser import ConfigParser
 from marker.output import text_from_rendered
 from utils.progress import progress_manager, ProgressCallback
 from utils.file_handler import FileHandler
+from core.config import settings
 
 
 class MarkerPDFConverter:
@@ -42,7 +43,30 @@ class MarkerPDFConverter:
         self.format_lines = format_lines
         self.disable_image_extraction = disable_image_extraction
         self.converter = None
+
+        # 应用GPU配置
+        self._apply_gpu_config()
         self._setup_converter()
+
+    def _apply_gpu_config(self):
+        """应用GPU配置"""
+        gpu_config = settings.get_gpu_config()
+
+        if gpu_config["enabled"]:
+            # 设置marker库的GPU环境变量
+            os.environ["NUM_DEVICES"] = str(gpu_config["devices"])
+            os.environ["NUM_WORKERS"] = str(gpu_config["workers"])
+
+            print(
+                f"🚀 GPU加速已启用: "
+                f"设备={gpu_config['devices']}, "
+                f"工作进程={gpu_config['workers']}"
+            )
+        else:
+            # 禁用GPU时清除环境变量
+            os.environ.pop("NUM_DEVICES", None)
+            os.environ.pop("NUM_WORKERS", None)
+            print("⚠️  GPU加速已禁用")
 
     def _setup_converter(self):
         """设置转换器配置"""
