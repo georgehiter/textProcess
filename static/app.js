@@ -155,6 +155,7 @@ createApp({
                 const file = files[0]
                 if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
                     uploadedFile.value = file
+                    taskId.value = null  // 重置任务ID，确保新文件会重新上传
                 } else {
                     showError('请选择PDF文件')
                 }
@@ -165,11 +166,13 @@ createApp({
             const file = e.target.files[0]
             if (file) {
                 uploadedFile.value = file
+                taskId.value = null  // 重置任务ID，确保新文件会重新上传
             }
         }
 
         const removeFile = () => {
             uploadedFile.value = null
+            taskId.value = null  // 重置任务ID，确保下次会重新上传
             if (currentStep.value > 1) {
                 currentStep.value = 1
             }

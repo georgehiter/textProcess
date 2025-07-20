@@ -81,17 +81,26 @@ async def get_gpu_status():
 async def upload_file(file: UploadFile = File(...)):
     """文件上传接口"""
     try:
+        print(f"🔍 [DEBUG] 收到文件上传请求")
+        print(f"   - 文件名: {file.filename}")
+        print(f"   - 文件大小: {file.size}")
+        print(f"   - 文件类型: {file.content_type}")
+
         # 生成任务ID
         task_id = FileHandler.generate_task_id()
+        print(f"   - 生成任务ID: {task_id}")
 
         # 保存文件
         success, message, file_path = await FileHandler.save_upload_file(file, task_id)
+        print(f"   - 保存结果: {success}, {message}")
+        print(f"   - 文件路径: {file_path}")
 
         if not success:
             raise HTTPException(status_code=400, detail=message)
 
         # 获取文件信息
         file_info = FileHandler.get_file_info(file_path)
+        print(f"   - 文件信息: {file_info}")
 
         return FileUploadResponse(
             success=True,
@@ -102,6 +111,7 @@ async def upload_file(file: UploadFile = File(...)):
         )
 
     except Exception as e:
+        print(f"❌ [ERROR] 文件上传失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
 
 
@@ -111,18 +121,26 @@ async def start_conversion(
 ):
     """开始转换接口"""
     try:
+        print(f"🔍 [DEBUG] 收到转换请求")
+        print(f"   - 任务ID: {request.task_id}")
+        print(f"   - 配置: {request.config}")
+
         task_id = request.task_id
 
         # 查找上传的文件
         upload_pattern = f"{task_id}_*"
         pdf_files = list(Path("uploads").glob(upload_pattern))
+        print(f"   - 查找文件模式: {upload_pattern}")
+        print(f"   - 找到文件: {pdf_files}")
 
         if not pdf_files:
+            print(f"❌ [ERROR] 未找到上传的文件")
             raise HTTPException(
                 status_code=404, detail="未找到上传的文件，请先上传PDF文件"
             )
 
         pdf_path = str(pdf_files[0])
+        print(f"   - 使用文件路径: {pdf_path}")
 
         # 应用GPU配置
         gpu_config = request.config.gpu_config
