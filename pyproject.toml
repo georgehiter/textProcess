@@ -14,8 +14,13 @@ dependencies = [
     "uvicorn[standard]>=0.24.0,<1.0.0",
     "python-multipart>=0.0.6,<1.0.0",
     "aiofiles>=23.2.1,<24.0.0",
-    "torchvision (==0.22.1)",
-    "psutil (>=7.0.0,<8.0.0)"
+    "torch>=2.7.1",
+    "torchvision>=0.22.1",
+    "torchaudio>=2.7.1",
+    "psutil>=7.0.0,<8.0.0",
+    "click>=8.2.1,<9.0.0",
+    "rich>=14.0.0,<15.0.0",
+    "pyyaml>=6.0.2,<7.0.0"
 ]
 
 [project.optional-dependencies]
@@ -55,3 +60,8 @@ requests = "^2.31.0"
 
 [tool.poetry.scripts]
 pdf-converter = "main:main"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu128"
+priority = "explicit"

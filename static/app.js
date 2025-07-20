@@ -33,9 +33,10 @@ createApp({
             disable_image_extraction: true,  // 优化：禁用图片提取
             gpu_config: {
                 enabled: false,
-                devices: 1,
-                workers: 4,
-                memory_limit: 0.8
+                num_devices: 1,
+                num_workers: 4,
+                torch_device: "cuda",
+                cuda_visible_devices: "0"
             }
         })
 
@@ -46,7 +47,11 @@ createApp({
             format_lines: false,
             disable_image_extraction: true,
             save_images: false,
-            gpu_enabled: false
+            gpu_enabled: false,
+            num_devices: 1,
+            num_workers: 4,
+            torch_device: "cuda",
+            cuda_visible_devices: "0"
         })
 
         // 进度轮询定时器
@@ -392,9 +397,10 @@ createApp({
             config.format_lines = false
             config.disable_image_extraction = true
             config.gpu_config.enabled = false
-            config.gpu_config.devices = 1
-            config.gpu_config.workers = 4
-            config.gpu_config.memory_limit = 0.8
+            config.gpu_config.num_devices = 1
+            config.gpu_config.num_workers = 4
+            config.gpu_config.torch_device = "cpu"
+            config.gpu_config.cuda_visible_devices = ""
 
             // 清理定时器
             if (progressTimer) {
@@ -451,6 +457,10 @@ createApp({
             config.format_lines = customConfig.format_lines
             config.disable_image_extraction = customConfig.disable_image_extraction
             config.gpu_config.enabled = customConfig.gpu_enabled
+            config.gpu_config.num_devices = customConfig.num_devices
+            config.gpu_config.num_workers = customConfig.num_workers
+            config.gpu_config.torch_device = customConfig.torch_device
+            config.gpu_config.cuda_visible_devices = customConfig.cuda_visible_devices
 
             // 关闭模态框
             showCustomModal.value = false
@@ -465,6 +475,10 @@ createApp({
             customConfig.format_lines = config.format_lines
             customConfig.disable_image_extraction = config.disable_image_extraction
             customConfig.gpu_enabled = config.gpu_config.enabled
+            customConfig.num_devices = config.gpu_config.num_devices
+            customConfig.num_workers = config.gpu_config.num_workers
+            customConfig.torch_device = config.gpu_config.torch_device
+            customConfig.cuda_visible_devices = config.gpu_config.cuda_visible_devices
         }
 
         const openCustomModal = () => {

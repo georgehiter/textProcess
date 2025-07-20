@@ -1,21 +1,17 @@
 import os
+from typing import Dict, Any
+from dataclasses import dataclass
 from pathlib import Path
 
 
+@dataclass
 class Settings:
-    """应用配置类"""
+    """应用程序全局设置"""
 
     # 基础配置
     APP_NAME: str = "PDF转Markdown工具"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
-
-    # 文件上传配置
-    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
-    ALLOWED_EXTENSIONS: set = {".pdf"}
-    UPLOAD_DIR: str = "uploads"
-    OUTPUT_DIR: str = "outputs"
-    TEMP_DIR: str = "templates"
 
     # 服务器配置
     HOST: str = "0.0.0.0"
@@ -23,106 +19,89 @@ class Settings:
     WORKERS: int = 1
 
     # CORS配置
-    CORS_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:3000",
-    ]
+    CORS_ORIGINS: list = None
 
-    # 文件清理配置
-    CLEANUP_INTERVAL: int = 3600  # 1小时
-    FILE_RETENTION: int = 86400  # 24小时
+    # 文件上传配置
+    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    ALLOWED_EXTENSIONS: set = None
 
-    # GPU配置
-    GPU_ENABLED: bool = False  # 是否启用GPU加速
-    GPU_DEVICES: int = 1  # GPU设备数量
-    GPU_WORKERS: int = 4  # GPU工作进程数
-    GPU_BATCH_SIZE: int = 4  # 批处理
-    GPU_MEMORY_LIMIT: float = 0.8  # GPU内存使用限制
+    # GPU配置 - 使用marker库识别的变量名
+    NUM_DEVICES: int = 1  # GPU设备数量
+    NUM_WORKERS: int = 4  # GPU工作进程数
+    TORCH_DEVICE: str = "cuda"  # PyTorch设备
+    CUDA_VISIBLE_DEVICES: str = "0"  # 可见GPU设备
 
-    def __init__(self):
-        """初始化配置"""
+    # 转换配置
+    OUTPUT_FORMAT: str = "markdown"
+    USE_LLM: bool = False
+    FORCE_OCR: bool = False
+    STRIP_EXISTING_OCR: bool = True
+    SAVE_IMAGES: bool = False
+    FORMAT_LINES: bool = False
+    DISABLE_IMAGE_EXTRACTION: bool = True
+
+    # 文件路径配置
+    UPLOAD_FOLDER: str = "uploads"
+    OUTPUT_FOLDER: str = "outputs"
+    LOG_FOLDER: str = "logs"
+
+    def __post_init__(self):
+        """初始化后处理"""
+        if self.CORS_ORIGINS is None:
+            self.CORS_ORIGINS = [
+                "http://localhost:3000",
+                "http://localhost:8000",
+                "http://127.0.0.1:8000",
+                "http://127.0.0.1:3000",
+            ]
+        if self.ALLOWED_EXTENSIONS is None:
+            self.ALLOWED_EXTENSIONS = {".pdf"}
         self._load_gpu_config()
-        self._validate_gpu_config()
+        self._validate_config()
         self._ensure_directories()
 
     def _load_gpu_config(self):
         """从环境变量加载GPU配置"""
-        # GPU启用状态
-        gpu_enabled = os.getenv("MARKER_GPU_ENABLED")
-        if gpu_enabled is not None:
-            self.GPU_ENABLED = gpu_enabled.lower() in ("true", "1", "yes", "on")
+        # 设备数量
+        num_devices = os.getenv("NUM_DEVICES")
+        if num_devices is not None:
+            self.NUM_DEVICES = int(num_devices)
 
-        # GPU设备数量
-        gpu_devices = os.getenv("MARKER_GPU_DEVICES")
-        if gpu_devices is not None:
-            try:
-                self.GPU_DEVICES = int(gpu_devices)
-            except ValueError:
-                pass
+        # 工作进程数
+        num_workers = os.getenv("NUM_WORKERS")
+        if num_workers is not None:
+            self.NUM_WORKERS = int(num_workers)
 
-        # GPU工作进程数
-        gpu_workers = os.getenv("MARKER_GPU_WORKERS")
-        if gpu_workers is not None:
-            try:
-                self.GPU_WORKERS = int(gpu_workers)
-            except ValueError:
-                pass
+        # PyTorch设备
+        torch_device = os.getenv("TORCH_DEVICE")
+        if torch_device is not None:
+            self.TORCH_DEVICE = torch_device
 
-        # GPU批处理大小
-        gpu_batch_size = os.getenv("MARKER_GPU_BATCH_SIZE")
-        if gpu_batch_size is not None:
-            try:
-                self.GPU_BATCH_SIZE = int(gpu_batch_size)
-            except ValueError:
-                pass
+        # CUDA可见设备
+        cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES")
+        if cuda_visible_devices is not None:
+            self.CUDA_VISIBLE_DEVICES = cuda_visible_devices
 
-        # GPU内存限制
-        gpu_memory_limit = os.getenv("MARKER_GPU_MEMORY_LIMIT")
-        if gpu_memory_limit is not None:
-            try:
-                self.GPU_MEMORY_LIMIT = float(gpu_memory_limit)
-            except ValueError:
-                pass
+    def _validate_config(self):
+        """验证配置参数"""
+        # 验证设备数量
+        if self.NUM_DEVICES < 1:
+            self.NUM_DEVICES = 1
+        elif self.NUM_DEVICES > 8:
+            self.NUM_DEVICES = 8
 
-    def _validate_gpu_config(self):
-        """验证GPU配置的有效性"""
-        # 验证GPU设备数量
-        if self.GPU_DEVICES < 1:
-            self.GPU_DEVICES = 1
-            print("⚠️  GPU设备数量不能小于1，已设置为1")
-
-        # 验证GPU工作进程数
-        if self.GPU_WORKERS < 1:
-            self.GPU_WORKERS = 1
-            print("⚠️  GPU工作进程数不能小于1，已设置为1")
-        elif self.GPU_WORKERS > 16:
-            self.GPU_WORKERS = 16
-            print("⚠️  GPU工作进程数不能大于16，已设置为16")
-
-        # 验证GPU批处理大小
-        if self.GPU_BATCH_SIZE < 1:
-            self.GPU_BATCH_SIZE = 1
-            print("⚠️  GPU批处理大小不能小于1，已设置为1")
-        elif self.GPU_BATCH_SIZE > 32:
-            self.GPU_BATCH_SIZE = 32
-            print("⚠️  GPU批处理大小不能大于32，已设置为32")
-
-        # 验证GPU内存限制
-        if self.GPU_MEMORY_LIMIT < 0.1:
-            self.GPU_MEMORY_LIMIT = 0.1
-            print("⚠️  GPU内存限制不能小于0.1，已设置为0.1")
-        elif self.GPU_MEMORY_LIMIT > 1.0:
-            self.GPU_MEMORY_LIMIT = 1.0
-            print("⚠️  GPU内存限制不能大于1.0，已设置为1.0")
+        # 验证工作进程数
+        if self.NUM_WORKERS < 1:
+            self.NUM_WORKERS = 1
+        elif self.NUM_WORKERS > 16:
+            self.NUM_WORKERS = 16
 
     def _ensure_directories(self):
         """确保必要的目录存在"""
         directories = [
-            self.UPLOAD_DIR,
-            self.OUTPUT_DIR,
-            self.TEMP_DIR,
+            self.UPLOAD_FOLDER,
+            self.OUTPUT_FOLDER,
+            self.LOG_FOLDER,
         ]
 
         for directory in directories:
@@ -131,17 +110,12 @@ class Settings:
     @property
     def upload_path(self) -> Path:
         """获取上传目录路径"""
-        return Path(self.UPLOAD_DIR)
+        return Path(self.UPLOAD_FOLDER)
 
     @property
     def output_path(self) -> Path:
         """获取输出目录路径"""
-        return Path(self.OUTPUT_DIR)
-
-    @property
-    def temp_path(self) -> Path:
-        """获取临时目录路径"""
-        return Path(self.TEMP_DIR)
+        return Path(self.OUTPUT_FOLDER)
 
     def is_valid_file(self, filename: str) -> bool:
         """检查文件是否有效"""
@@ -161,35 +135,34 @@ class Settings:
 
     def get_temp_path(self, task_id: str) -> Path:
         """获取临时目录路径"""
-        return self.temp_path / task_id
-
-    def get_gpu_config(self) -> dict:
-        """获取GPU配置字典"""
-        return {
-            "enabled": self.GPU_ENABLED,
-            "devices": self.GPU_DEVICES,
-            "workers": self.GPU_WORKERS,
-            "batch_size": self.GPU_BATCH_SIZE,
-            "memory_limit": self.GPU_MEMORY_LIMIT,
-        }
+        return Path(self.LOG_FOLDER) / task_id
 
     def apply_gpu_environment(self):
-        """应用GPU配置到环境变量"""
-        if self.GPU_ENABLED:
-            os.environ["NUM_DEVICES"] = str(self.GPU_DEVICES)
-            os.environ["NUM_WORKERS"] = str(self.GPU_WORKERS)
-            os.environ["BATCH_SIZE"] = str(self.GPU_BATCH_SIZE)
-            print(
-                f"✅ GPU配置已应用: 设备={self.GPU_DEVICES}, "
-                f"工作进程={self.GPU_WORKERS}, 批处理大小={self.GPU_BATCH_SIZE}"
-            )
-        else:
-            # 禁用GPU时清除相关环境变量
-            os.environ.pop("NUM_DEVICES", None)
-            os.environ.pop("NUM_WORKERS", None)
-            os.environ.pop("BATCH_SIZE", None)
-            print("⚠️  GPU加速已禁用")
+        """应用GPU环境变量"""
+        # 设置marker库识别的环境变量
+        os.environ["NUM_DEVICES"] = str(self.NUM_DEVICES)
+        os.environ["NUM_WORKERS"] = str(self.NUM_WORKERS)
+        os.environ["TORCH_DEVICE"] = self.TORCH_DEVICE
+        os.environ["CUDA_VISIBLE_DEVICES"] = self.CUDA_VISIBLE_DEVICES
+
+    def get_gpu_config(self) -> Dict[str, Any]:
+        """获取GPU配置字典"""
+        return {
+            "num_devices": self.NUM_DEVICES,
+            "num_workers": self.NUM_WORKERS,
+            "torch_device": self.TORCH_DEVICE,
+            "cuda_visible_devices": self.CUDA_VISIBLE_DEVICES,
+        }
+
+    def get_config_summary(self) -> str:
+        """获取配置摘要"""
+        return (
+            f"GPU设备数={self.NUM_DEVICES}, "
+            f"工作进程数={self.NUM_WORKERS}, "
+            f"PyTorch设备={self.TORCH_DEVICE}, "
+            f"CUDA可见设备={self.CUDA_VISIBLE_DEVICES}"
+        )
 
 
-# 全局配置实例
+# 全局设置实例
 settings = Settings()

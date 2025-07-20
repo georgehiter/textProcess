@@ -178,7 +178,7 @@
                         <div class="gpu-advanced" v-if="config.gpu_config.enabled">
                             <div class="config-group">
                                 <label>GPU设备数量</label>
-                                <select v-model="config.gpu_config.devices" class="form-control">
+                                <select v-model="config.gpu_config.num_devices" class="form-control">
                                     <option v-for="n in Math.min(8, gpuStatus.device_count)" :key="n" :value="n">{{
                                         n }}</option>
                                 </select>
@@ -187,17 +187,21 @@
 
                             <div class="config-group">
                                 <label>工作进程数</label>
-                                <select v-model="config.gpu_config.workers" class="form-control">
+                                <select v-model="config.gpu_config.num_workers" class="form-control">
                                     <option v-for="n in 16" :key="n" :value="n">{{ n }}</option>
                                 </select>
-                                <small>每个GPU的工作进程数量</small>
+                                <small>GPU工作进程数量</small>
                             </div>
 
+
+
                             <div class="config-group">
-                                <label>内存使用限制: {{ (config.gpu_config.memory_limit * 100).toFixed(0) }}%</label>
-                                <input type="range" v-model="config.gpu_config.memory_limit" min="0.1" max="1.0"
-                                    step="0.1" class="form-control">
-                                <small>限制GPU内存使用比例</small>
+                                <label>PyTorch设备</label>
+                                <select v-model="config.gpu_config.torch_device" class="form-control">
+                                    <option value="cuda">CUDA (GPU)</option>
+                                    <option value="cpu">CPU</option>
+                                </select>
+                                <small>选择计算设备</small>
                             </div>
                         </div>
                     </div>

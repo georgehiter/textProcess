@@ -87,7 +87,7 @@ class GPUUsageMonitor:
             settings.GPU_ENABLED = True
             settings.GPU_DEVICES = 1
             settings.GPU_WORKERS = 4  # 较少工作进程
-            settings.GPU_BATCH_SIZE = 4  # 小批处理
+            # 移除批处理大小设置，使用默认配置
         else:
             settings.GPU_ENABLED = False
 
@@ -97,7 +97,7 @@ class GPUUsageMonitor:
         print(f"  GPU加速: {'启用' if mode == 'GPU' else '禁用'}")
         print(f"  设备数量: {settings.GPU_DEVICES}")
         print(f"  工作进程: {settings.GPU_WORKERS}")
-        print(f"  批处理大小: {settings.GPU_BATCH_SIZE}")
+        print(f"  批处理大小: 使用默认配置")
 
         # 创建转换器
         converter = MarkerPDFConverter(

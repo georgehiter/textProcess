@@ -52,26 +52,8 @@ class MarkerPDFConverter:
 
     def _apply_gpu_config(self):
         """应用GPU配置"""
-        gpu_config = settings.get_gpu_config()
-
-        if gpu_config["enabled"]:
-            # 设置marker库的GPU环境变量
-            os.environ["NUM_DEVICES"] = str(gpu_config["devices"])
-            os.environ["NUM_WORKERS"] = str(gpu_config["workers"])
-            os.environ["BATCH_SIZE"] = str(gpu_config["batch_size"])
-
-            print(
-                f"🚀 GPU加速已启用: "
-                f"设备={gpu_config['devices']}, "
-                f"工作进程={gpu_config['workers']}, "
-                f"批处理大小={gpu_config['batch_size']}"
-            )
-        else:
-            # 禁用GPU时清除环境变量
-            os.environ.pop("NUM_DEVICES", None)
-            os.environ.pop("NUM_WORKERS", None)
-            os.environ.pop("BATCH_SIZE", None)
-            print("⚠️  GPU加速已禁用")
+        # 直接应用GPU环境变量
+        settings.apply_gpu_environment()
 
     def _setup_converter(self):
         """设置转换器配置"""

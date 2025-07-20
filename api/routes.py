@@ -54,10 +54,11 @@ async def get_gpu_status():
 
         # 获取当前GPU配置
         current_config = GPUConfig(
-            enabled=settings.GPU_ENABLED,
-            devices=settings.GPU_DEVICES,
-            workers=settings.GPU_WORKERS,
-            memory_limit=settings.GPU_MEMORY_LIMIT,
+            enabled=True,  # 默认启用
+            num_devices=settings.NUM_DEVICES,
+            num_workers=settings.NUM_WORKERS,
+            torch_device=settings.TORCH_DEVICE,
+            cuda_visible_devices=settings.CUDA_VISIBLE_DEVICES,
         )
 
         return GPUStatus(
@@ -126,13 +127,16 @@ async def start_conversion(
         # 应用GPU配置
         gpu_config = request.config.gpu_config
         if gpu_config.enabled:
-            settings.GPU_ENABLED = True
-            settings.GPU_DEVICES = gpu_config.devices
-            settings.GPU_WORKERS = gpu_config.workers
-            settings.GPU_MEMORY_LIMIT = gpu_config.memory_limit
+            # 使用统一后的marker库变量名
+            settings.NUM_DEVICES = gpu_config.num_devices
+            settings.NUM_WORKERS = gpu_config.num_workers
+            settings.TORCH_DEVICE = gpu_config.torch_device
+            settings.CUDA_VISIBLE_DEVICES = gpu_config.cuda_visible_devices
             settings.apply_gpu_environment()
         else:
-            settings.GPU_ENABLED = False
+            # 禁用GPU时使用CPU
+            settings.TORCH_DEVICE = "cpu"
+            settings.CUDA_VISIBLE_DEVICES = ""
             settings.apply_gpu_environment()
 
         # 添加调试日志
