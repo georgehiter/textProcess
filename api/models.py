@@ -32,11 +32,10 @@ class ConversionConfig(BaseModel):
     )
     use_llm: bool = Field(default=False, description="是否使用LLM提升准确性")
     force_ocr: bool = Field(default=False, description="是否强制使用OCR")
-    save_images: bool = Field(default=True, description="是否保存提取的图片")
-    format_lines: bool = Field(default=True, description="是否重新格式化行")
-    disable_image_extraction: bool = Field(
-        default=False, description="是否禁用图片提取"
-    )
+    save_images: bool = Field(default=False, description="是否保存提取的图片")
+    format_lines: bool = Field(default=False, description="是否重新格式化行")
+    disable_image_extraction: bool = Field(default=True, description="是否禁用图片提取")
+    strip_existing_ocr: bool = Field(default=True, description="是否去除已有OCR文本")
     gpu_config: GPUConfig = Field(default_factory=GPUConfig, description="GPU加速配置")
 
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 import torch
 from api.models import (
     FileUploadResponse,
@@ -135,6 +135,17 @@ async def start_conversion(
             settings.GPU_ENABLED = False
             settings.apply_gpu_environment()
 
+        # 添加调试日志
+        print(f"🔍 [DEBUG] 转换请求参数:")
+        print(f"   - force_ocr: {request.config.force_ocr}")
+        print(f"   - strip_existing_ocr: {request.config.strip_existing_ocr}")
+        print(f"   - save_images: {request.config.save_images}")
+        print(f"   - format_lines: {request.config.format_lines}")
+        print(
+            f"   - disable_image_extraction: {request.config.disable_image_extraction}"
+        )
+        print(f"   - gpu_config: {request.config.gpu_config}")
+
         # 在后台执行转换任务
         background_tasks.add_task(
             convert_pdf_task,
@@ -205,7 +216,10 @@ async def get_result(task_id: str):
         image_dir = output_dir / "images"
         image_paths = []
         if image_dir.exists():
-            image_paths = [str(p) for p in image_dir.glob("*.png")]
+            # 查找所有类型的图片文件
+            image_paths = []
+            for pattern in ["*.png", "*.jpeg", "*.jpg", "*.gif", "*.bmp", "*.tiff"]:
+                image_paths.extend([str(p) for p in image_dir.glob(pattern)])
 
         # 查找元数据文件
         metadata_file = output_dir / "metadata.json"
@@ -225,6 +239,57 @@ async def get_result(task_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取结果失败: {str(e)}")
+
+
+@router.get("/download-images/{task_id}")
+async def download_images(task_id: str):
+    """下载转换结果中的图片压缩包"""
+    try:
+        import zipfile
+        import io
+
+        # 查找输出目录
+        output_dir = Path("outputs") / task_id
+        if not output_dir.exists():
+            raise HTTPException(status_code=404, detail="输出文件不存在")
+
+        # 查找图片目录
+        image_dir = output_dir / "images"
+        if not image_dir.exists():
+            raise HTTPException(status_code=404, detail="图片文件不存在")
+
+        # 获取所有图片文件（现在文件名保持原始格式）
+        image_files = []
+        # 查找所有可能的图片文件
+        for pattern in ["*.png", "*.jpeg", "*.jpg", "*.gif", "*.bmp", "*.tiff"]:
+            image_files.extend(list(image_dir.glob(pattern)))
+
+        if not image_files:
+            raise HTTPException(status_code=404, detail="没有找到图片文件")
+
+        # 创建内存中的zip文件
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for img_file in image_files:
+                # 将图片文件添加到zip中
+                zip_file.write(img_file, img_file.name)
+
+        # 重置缓冲区位置
+        zip_buffer.seek(0)
+
+        # 返回zip文件
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={task_id}_images.zip"
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"下载图片压缩包失败: {str(e)}")
 
 
 @router.get("/download/{task_id}")
@@ -251,6 +316,49 @@ async def download_result(task_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
+
+
+@router.get("/images/{task_id}/{filename}")
+async def get_image(task_id: str, filename: str):
+    """获取转换结果中的图片文件"""
+    try:
+        # 构建图片文件路径
+        image_path = Path("outputs") / task_id / "images" / filename
+
+        # 检查文件是否存在
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail="图片文件不存在")
+
+        # 检查文件是否在允许的目录内（安全验证）
+        try:
+            image_path.resolve().relative_to(Path("outputs").resolve())
+        except ValueError:
+            raise HTTPException(status_code=403, detail="访问被拒绝")
+
+        # 返回图片文件
+        # 根据文件扩展名确定媒体类型
+        if filename.endswith(".png"):
+            media_type = "image/png"
+        elif filename.endswith(".jpeg") or filename.endswith(".jpg"):
+            media_type = "image/jpeg"
+        elif filename.endswith(".gif"):
+            media_type = "image/gif"
+        elif filename.endswith(".bmp"):
+            media_type = "image/bmp"
+        elif filename.endswith(".tiff"):
+            media_type = "image/tiff"
+        else:
+            media_type = "image/png"  # 默认类型
+
+        return FileResponse(
+            path=image_path,
+            media_type=media_type,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取图片失败: {str(e)}")
 
 
 @router.delete("/task/{task_id}")

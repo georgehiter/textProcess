@@ -21,9 +21,10 @@ class MarkerPDFConverter:
         output_format: str = "markdown",
         use_llm: bool = False,
         force_ocr: bool = False,
-        save_images: bool = True,
-        format_lines: bool = True,
-        disable_image_extraction: bool = False,
+        save_images: bool = False,  # 优化：关闭图片保存以提升速度
+        format_lines: bool = False,  # 关闭行格式化以提升速度
+        disable_image_extraction: bool = True,  # 优化：禁用图片提取以提升速度
+        strip_existing_ocr: bool = True,  # 新增：去除已有OCR文本以提升速度
     ):
         """
         初始化转换器
@@ -42,6 +43,7 @@ class MarkerPDFConverter:
         self.save_images = save_images
         self.format_lines = format_lines
         self.disable_image_extraction = disable_image_extraction
+        self.strip_existing_ocr = strip_existing_ocr
         self.converter = None
 
         # 应用GPU配置
@@ -56,16 +58,19 @@ class MarkerPDFConverter:
             # 设置marker库的GPU环境变量
             os.environ["NUM_DEVICES"] = str(gpu_config["devices"])
             os.environ["NUM_WORKERS"] = str(gpu_config["workers"])
+            os.environ["BATCH_SIZE"] = str(gpu_config["batch_size"])
 
             print(
                 f"🚀 GPU加速已启用: "
                 f"设备={gpu_config['devices']}, "
-                f"工作进程={gpu_config['workers']}"
+                f"工作进程={gpu_config['workers']}, "
+                f"批处理大小={gpu_config['batch_size']}"
             )
         else:
             # 禁用GPU时清除环境变量
             os.environ.pop("NUM_DEVICES", None)
             os.environ.pop("NUM_WORKERS", None)
+            os.environ.pop("BATCH_SIZE", None)
             print("⚠️  GPU加速已禁用")
 
     def _setup_converter(self):
@@ -76,7 +81,16 @@ class MarkerPDFConverter:
             "force_ocr": self.force_ocr,
             "format_lines": self.format_lines,
             "use_llm": self.use_llm,
+            "strip_existing_ocr": self.strip_existing_ocr,
         }
+
+        # 添加调试日志
+        print("🔍 [DEBUG] 转换器配置:")
+        print(f"   - force_ocr: {self.force_ocr}")
+        print(f"   - strip_existing_ocr: {self.strip_existing_ocr}")
+        print(f"   - save_images: {self.save_images}")
+        print(f"   - format_lines: {self.format_lines}")
+        print(f"   - disable_image_extraction: " f"{self.disable_image_extraction}")
 
         config_parser = ConfigParser(config)
 
@@ -191,8 +205,12 @@ class MarkerPDFConverter:
         """保存主要内容"""
         if self.output_format == "markdown":
             output_file = output_dir / f"{filename}.md"
+
+            # 处理markdown内容中的图片引用
+            processed_content = self._process_markdown_images(content, output_dir)
+
             with open(output_file, "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(processed_content)
         elif self.output_format == "json":
             output_file = output_dir / f"{filename}.json"
             with open(output_file, "w", encoding="utf-8") as f:
@@ -222,18 +240,69 @@ class MarkerPDFConverter:
         image_paths = []
         for img_name, img_data in images.items():
             if img_data:
+                # 保持原始文件名，不强制添加.png扩展名
+                img_path = image_dir / img_name
+
                 # 处理不同的图片数据格式
                 if isinstance(img_data, bytes):
-                    img_path = image_dir / f"{img_name}.png"
                     with open(img_path, "wb") as f:
                         f.write(img_data)
                     image_paths.append(str(img_path))
                 elif hasattr(img_data, "save"):  # PIL Image
-                    img_path = image_dir / f"{img_name}.png"
                     img_data.save(img_path)
                     image_paths.append(str(img_path))
 
         return image_paths
+
+    def _process_markdown_images(self, content: str, output_dir: Path) -> str:
+        """处理markdown内容中的图片引用，替换为API路径"""
+        import re
+
+        # 获取任务ID（从输出目录名）
+        task_id = output_dir.name
+
+        # 查找图片目录
+        image_dir = output_dir / "images"
+        if not image_dir.exists():
+            return content
+
+        # 获取所有图片文件
+        image_files = list(image_dir.glob("*.png"))
+        image_files.extend(list(image_dir.glob("*.jpeg")))
+        image_files.extend(list(image_dir.glob("*.jpg")))
+
+        # 创建图片文件名映射
+        image_map = {}
+        for img_file in image_files:
+            # 移除扩展名作为key
+            base_name = img_file.stem
+            image_map[base_name] = img_file.name
+
+            # 替换markdown中的图片引用
+
+        def replace_image_ref(match):
+            alt_text = match.group(1)  # 获取alt文本
+            img_path = match.group(2)  # 获取图片路径
+
+            # 提取文件名（去除路径）
+            filename = img_path.split("/")[-1]
+
+            # 检查是否有对应的图片文件
+            for img_file in image_files:
+                # 现在文件名应该完全匹配
+                if img_file.name == filename:
+                    # 替换为API路径
+                    return f"![{alt_text}](/api/images/{task_id}/{filename})"
+
+            # 如果找不到对应的图片文件，保持原样
+            return match.group(0)
+
+        # 使用正则表达式替换图片引用
+        # 匹配 ![alt](filename) 格式
+        pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
+        processed_content = re.sub(pattern, replace_image_ref, content)
+
+        return processed_content
 
     def _save_metadata(self, metadata: Dict, output_dir: Path) -> Path:
         """保存元数据"""
@@ -261,9 +330,10 @@ async def convert_pdf_task(
         output_format=config.get("output_format", "markdown"),
         use_llm=config.get("use_llm", False),
         force_ocr=config.get("force_ocr", False),
-        save_images=config.get("save_images", True),
-        format_lines=config.get("format_lines", True),
-        disable_image_extraction=config.get("disable_image_extraction", False),
+        save_images=config.get("save_images", False),
+        format_lines=config.get("format_lines", False),
+        disable_image_extraction=config.get("disable_image_extraction", True),
+        strip_existing_ocr=config.get("strip_existing_ocr", True),
     )
 
     output_dir = FileHandler.ensure_output_directory(task_id)

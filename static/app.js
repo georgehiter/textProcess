@@ -18,21 +18,35 @@ createApp({
         const gpuStatus = ref(null)
         const isConverting = ref(false)
         const showResult = ref(false)
+        const showCustomModal = ref(false)
+        const hasImages = ref(false)
+        const imageCount = ref(0)
 
         // 转换配置
         const config = reactive({
             output_format: 'markdown',  // 固定为markdown格式
             // use_llm: false,        // 前端隐藏，后端保持
             force_ocr: false,
-            // save_images: true,     // 前端隐藏，后端保持
-            format_lines: true,
-            disable_image_extraction: false,
+            strip_existing_ocr: true,   // 新增：去除已有OCR文本
+            save_images: false,         // 优化：关闭图片保存
+            format_lines: false,        // 优化：关闭行格式化
+            disable_image_extraction: true,  // 优化：禁用图片提取
             gpu_config: {
-                enabled: true,
+                enabled: false,
                 devices: 1,
                 workers: 4,
                 memory_limit: 0.8
             }
+        })
+
+        // 自定义配置
+        const customConfig = reactive({
+            force_ocr: false,
+            strip_existing_ocr: true,
+            format_lines: false,
+            disable_image_extraction: true,
+            save_images: false,
+            gpu_enabled: false
         })
 
         // 进度轮询定时器
@@ -43,7 +57,26 @@ createApp({
         // 计算属性
         const renderedPreview = computed(() => {
             if (!textPreview.value) return ''
-            return marked.parse(textPreview.value)
+
+            // 处理markdown中的图片链接，将相对路径转换为API路径
+            let processedText = textPreview.value
+            if (taskId.value) {
+                // 匹配markdown图片语法 ![alt](path)
+                processedText = processedText.replace(
+                    /!\[([^\]]*)\]\(([^)]+)\)/g,
+                    (match, alt, path) => {
+                        // 如果是相对路径（不以http开头），转换为API路径
+                        if (!path.startsWith('http')) {
+                            // 提取文件名
+                            const filename = path.split('/').pop()
+                            return `![${alt}](/api/images/${taskId.value}/${filename})`
+                        }
+                        return match
+                    }
+                )
+            }
+
+            return marked.parse(processedText)
         })
 
         // 计算已用时间
@@ -203,6 +236,14 @@ createApp({
                     taskId.value = uploadResult.task_id
                 }
 
+                // 添加调试日志
+                const requestConfig = {
+                    ...config,
+                    use_llm: false      // 确保后端收到false
+                }
+                console.log('🔍 [DEBUG] 前端发送的配置:', requestConfig)
+                console.log('🔍 [DEBUG] force_ocr值:', requestConfig.force_ocr)
+
                 // 开始转换
                 const response = await fetch('/api/convert', {
                     method: 'POST',
@@ -211,11 +252,7 @@ createApp({
                     },
                     body: JSON.stringify({
                         task_id: taskId.value,
-                        config: {
-                            ...config,
-                            use_llm: false,      // 确保后端收到false
-                            save_images: false   // 确保后端收到false
-                        }
+                        config: requestConfig
                     })
                 })
 
@@ -277,7 +314,8 @@ createApp({
 
                 if (result.success) {
                     // processingTime.value = result.processing_time || 0  // 不再需要后端时间
-                    // imageCount.value = result.image_paths?.length || 0  // 注释掉图片计数
+                    imageCount.value = result.image_paths?.length || 0
+                    hasImages.value = imageCount.value > 0
                     textPreview.value = result.text_preview || ''
                     showResult.value = true  // 显示结果
                     // currentStep.value = 4  // 删除步骤控制
@@ -309,6 +347,26 @@ createApp({
             }
         }
 
+        const downloadImages = async () => {
+            if (!taskId.value) return
+
+            try {
+                const response = await fetch(`/api/download-images/${taskId.value}`)
+                const blob = await response.blob()
+
+                const url = window.URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = uploadedFile.value?.name?.replace('.pdf', '_images.zip') || 'images.zip'
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                window.URL.revokeObjectURL(url)
+            } catch (err) {
+                showError('下载图片压缩包失败: ' + err.message)
+            }
+        }
+
         const startNewConversion = () => {
             // 重置状态
             // currentStep.value = 1  // 删除步骤控制
@@ -319,7 +377,8 @@ createApp({
             finalTime.value = null
             error.value = ''
             processingTime.value = 0
-            // imageCount.value = 0  // 注释掉图片计数
+            imageCount.value = 0
+            hasImages.value = false
             textPreview.value = ''
             isConverting.value = false
             showResult.value = false
@@ -328,10 +387,11 @@ createApp({
             config.output_format = 'markdown'
             // config.use_llm = false  // 注释掉
             config.force_ocr = false
-            // config.save_images = true  // 注释掉
-            config.format_lines = true
-            config.disable_image_extraction = false
-            config.gpu_config.enabled = gpuStatus.value?.available || false
+            config.strip_existing_ocr = true
+            config.save_images = false
+            config.format_lines = false
+            config.disable_image_extraction = true
+            config.gpu_config.enabled = false
             config.gpu_config.devices = 1
             config.gpu_config.workers = 4
             config.gpu_config.memory_limit = 0.8
@@ -356,6 +416,74 @@ createApp({
 
         const clearError = () => {
             error.value = ''
+        }
+
+        // 配置预设方法
+        const applySpeedPreset = () => {
+            config.force_ocr = false
+            config.strip_existing_ocr = true
+            config.save_images = false
+            config.format_lines = false
+            config.disable_image_extraction = true
+            showError('已应用速度优先配置')
+        }
+
+        const applyAccuracyPreset = () => {
+            config.force_ocr = true
+            config.strip_existing_ocr = false
+            config.save_images = true
+            config.format_lines = true
+            config.disable_image_extraction = false
+            showError('已应用准确性优先配置')
+        }
+
+        const applyCustomConfig = () => {
+            // 检查配置冲突
+            if (customConfig.disable_image_extraction && customConfig.save_images) {
+                showError('⚠️ 配置冲突：禁用图片提取时无法保存图片，已自动调整')
+                customConfig.save_images = false
+            }
+
+            // 应用自定义配置到主配置
+            config.force_ocr = customConfig.force_ocr
+            config.strip_existing_ocr = customConfig.strip_existing_ocr
+            config.save_images = customConfig.save_images
+            config.format_lines = customConfig.format_lines
+            config.disable_image_extraction = customConfig.disable_image_extraction
+            config.gpu_config.enabled = customConfig.gpu_enabled
+
+            // 关闭模态框
+            showCustomModal.value = false
+            showError('已应用自定义配置')
+        }
+
+        const initCustomConfig = () => {
+            // 初始化自定义配置为当前配置的副本
+            customConfig.force_ocr = config.force_ocr
+            customConfig.strip_existing_ocr = config.strip_existing_ocr
+            customConfig.save_images = config.save_images
+            customConfig.format_lines = config.format_lines
+            customConfig.disable_image_extraction = config.disable_image_extraction
+            customConfig.gpu_enabled = config.gpu_config.enabled
+        }
+
+        const openCustomModal = () => {
+            initCustomConfig()
+            showCustomModal.value = true
+        }
+
+        const handleImageExtractionChange = () => {
+            // 当禁用图片提取时，自动禁用保存图片
+            if (customConfig.disable_image_extraction) {
+                customConfig.save_images = false
+            }
+        }
+
+        const handleMainImageExtractionChange = () => {
+            // 当禁用图片提取时，自动禁用保存图片
+            if (config.disable_image_extraction) {
+                config.save_images = false
+            }
         }
 
         // 生命周期
@@ -406,7 +534,19 @@ createApp({
             downloadResult,
             startNewConversion,
             showError,
-            clearError
+            clearError,
+            applySpeedPreset,
+            applyAccuracyPreset,
+            applyCustomConfig,
+            initCustomConfig,
+            openCustomModal,
+            handleImageExtractionChange,
+            handleMainImageExtractionChange,
+            showCustomModal,
+            customConfig,
+            hasImages,
+            imageCount,
+            downloadImages
         }
     }
 }).mount('#app') 

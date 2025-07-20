@@ -35,10 +35,11 @@ class Settings:
     FILE_RETENTION: int = 86400  # 24小时
 
     # GPU配置
-    GPU_ENABLED: bool = True  # 是否启用GPU加速
+    GPU_ENABLED: bool = False  # 是否启用GPU加速
     GPU_DEVICES: int = 1  # GPU设备数量
-    GPU_WORKERS: int = 4  # 每个GPU的工作进程数
-    GPU_MEMORY_LIMIT: float = 0.8  # GPU内存使用限制（0.8表示使用80%）
+    GPU_WORKERS: int = 4  # GPU工作进程数
+    GPU_BATCH_SIZE: int = 4  # 批处理
+    GPU_MEMORY_LIMIT: float = 0.8  # GPU内存使用限制
 
     def __init__(self):
         """初始化配置"""
@@ -69,6 +70,14 @@ class Settings:
             except ValueError:
                 pass
 
+        # GPU批处理大小
+        gpu_batch_size = os.getenv("MARKER_GPU_BATCH_SIZE")
+        if gpu_batch_size is not None:
+            try:
+                self.GPU_BATCH_SIZE = int(gpu_batch_size)
+            except ValueError:
+                pass
+
         # GPU内存限制
         gpu_memory_limit = os.getenv("MARKER_GPU_MEMORY_LIMIT")
         if gpu_memory_limit is not None:
@@ -91,6 +100,14 @@ class Settings:
         elif self.GPU_WORKERS > 16:
             self.GPU_WORKERS = 16
             print("⚠️  GPU工作进程数不能大于16，已设置为16")
+
+        # 验证GPU批处理大小
+        if self.GPU_BATCH_SIZE < 1:
+            self.GPU_BATCH_SIZE = 1
+            print("⚠️  GPU批处理大小不能小于1，已设置为1")
+        elif self.GPU_BATCH_SIZE > 32:
+            self.GPU_BATCH_SIZE = 32
+            print("⚠️  GPU批处理大小不能大于32，已设置为32")
 
         # 验证GPU内存限制
         if self.GPU_MEMORY_LIMIT < 0.1:
@@ -152,6 +169,7 @@ class Settings:
             "enabled": self.GPU_ENABLED,
             "devices": self.GPU_DEVICES,
             "workers": self.GPU_WORKERS,
+            "batch_size": self.GPU_BATCH_SIZE,
             "memory_limit": self.GPU_MEMORY_LIMIT,
         }
 
@@ -160,13 +178,16 @@ class Settings:
         if self.GPU_ENABLED:
             os.environ["NUM_DEVICES"] = str(self.GPU_DEVICES)
             os.environ["NUM_WORKERS"] = str(self.GPU_WORKERS)
+            os.environ["BATCH_SIZE"] = str(self.GPU_BATCH_SIZE)
             print(
-                f"✅ GPU配置已应用: 设备={self.GPU_DEVICES}, 工作进程={self.GPU_WORKERS}"
+                f"✅ GPU配置已应用: 设备={self.GPU_DEVICES}, "
+                f"工作进程={self.GPU_WORKERS}, 批处理大小={self.GPU_BATCH_SIZE}"
             )
         else:
             # 禁用GPU时清除相关环境变量
             os.environ.pop("NUM_DEVICES", None)
             os.environ.pop("NUM_WORKERS", None)
+            os.environ.pop("BATCH_SIZE", None)
             print("⚠️  GPU加速已禁用")
 
 
