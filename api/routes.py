@@ -119,10 +119,11 @@ async def upload_file(file: UploadFile = File(...)):
 async def start_conversion(
     request: ConversionRequest, background_tasks: BackgroundTasks
 ):
-    """开始转换接口"""
+    """统一的转换接口 - 支持Marker和OCR两种模式"""
     try:
         print(f"🔍 [DEBUG] 收到转换请求")
         print(f"   - 任务ID: {request.task_id}")
+        print(f"   - 转换方式: {request.config.conversion_mode}")
         print(f"   - 配置: {request.config}")
 
         task_id = request.task_id
@@ -142,43 +143,67 @@ async def start_conversion(
         pdf_path = str(pdf_files[0])
         print(f"   - 使用文件路径: {pdf_path}")
 
-        # 应用GPU配置
-        gpu_config = request.config.gpu_config
-        if gpu_config.enabled:
-            # 使用统一后的marker库变量名
-            settings.NUM_DEVICES = gpu_config.num_devices
-            settings.NUM_WORKERS = gpu_config.num_workers
-            settings.TORCH_DEVICE = gpu_config.torch_device
-            settings.CUDA_VISIBLE_DEVICES = gpu_config.cuda_visible_devices
-            settings.apply_gpu_environment()
+        # 根据用户选择的转换方式执行不同的转换
+        if request.config.conversion_mode == "ocr":
+            # OCR转换
+            from core.scan_converter import scan_convert_pdf_task
+
+            # 准备OCR配置
+            ocr_config = {
+                "output_format": request.config.output_format.value,
+                "enhance_quality": request.config.enhance_quality,
+                "language_detection": request.config.language_detection,
+                "document_type_detection": request.config.document_type_detection,
+                "output_path": str(settings.get_output_path(task_id)),
+            }
+
+            background_tasks.add_task(
+                scan_convert_pdf_task,
+                pdf_path=pdf_path,
+                task_id=task_id,
+                config=ocr_config,
+            )
+
+            return ConversionResponse(
+                success=True, task_id=task_id, message="OCR转换任务已启动"
+            )
         else:
-            # 禁用GPU时使用CPU
-            settings.TORCH_DEVICE = "cpu"
-            settings.CUDA_VISIBLE_DEVICES = ""
-            settings.apply_gpu_environment()
+            # Marker转换（现有逻辑）
+            # 应用GPU配置
+            gpu_config = request.config.gpu_config
+            if gpu_config.enabled:
+                settings.NUM_DEVICES = gpu_config.num_devices
+                settings.NUM_WORKERS = gpu_config.num_workers
+                settings.TORCH_DEVICE = gpu_config.torch_device
+                settings.CUDA_VISIBLE_DEVICES = gpu_config.cuda_visible_devices
+                settings.apply_gpu_environment()
+            else:
+                settings.TORCH_DEVICE = "cpu"
+                settings.CUDA_VISIBLE_DEVICES = ""
+                settings.apply_gpu_environment()
 
-        # 添加调试日志
-        print(f"🔍 [DEBUG] 转换请求参数:")
-        print(f"   - force_ocr: {request.config.force_ocr}")
-        print(f"   - strip_existing_ocr: {request.config.strip_existing_ocr}")
-        print(f"   - save_images: {request.config.save_images}")
-        print(f"   - format_lines: {request.config.format_lines}")
-        print(
-            f"   - disable_image_extraction: {request.config.disable_image_extraction}"
-        )
-        print(f"   - gpu_config: {request.config.gpu_config}")
+            # 添加调试日志
+            print(f"🔍 [DEBUG] 转换请求参数:")
+            print(f"   - force_ocr: {request.config.force_ocr}")
+            print(f"   - strip_existing_ocr: {request.config.strip_existing_ocr}")
+            print(f"   - save_images: {request.config.save_images}")
+            print(f"   - format_lines: {request.config.format_lines}")
+            print(
+                f"   - disable_image_extraction: {request.config.disable_image_extraction}"
+            )
+            print(f"   - gpu_config: {request.config.gpu_config}")
 
-        # 在后台执行转换任务
-        background_tasks.add_task(
-            convert_pdf_task,
-            pdf_path=pdf_path,
-            task_id=task_id,
-            config=request.config.dict(),
-        )
+            # 在后台执行转换任务
+            background_tasks.add_task(
+                convert_pdf_task,
+                pdf_path=pdf_path,
+                task_id=task_id,
+                config=request.config.dict(),
+            )
 
-        return ConversionResponse(
-            success=True, task_id=task_id, message="转换任务已启动"
-        )
+            return ConversionResponse(
+                success=True, task_id=task_id, message="Marker转换任务已启动"
+            )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动转换失败: {str(e)}")
@@ -222,15 +247,15 @@ async def get_result(task_id: str):
         if not output_dir.exists():
             raise HTTPException(status_code=404, detail="输出文件不存在")
 
-        # 查找markdown文件
-        md_files = list(output_dir.glob("*.md"))
-        if not md_files:
+        # 查找输出文件（支持markdown和txt格式）
+        output_files = list(output_dir.glob("*.md")) + list(output_dir.glob("*.txt"))
+        if not output_files:
             raise HTTPException(status_code=404, detail="未找到转换结果")
 
-        md_file = md_files[0]
+        output_file = output_files[0]
 
         # 读取文件内容预览
-        with open(md_file, "r", encoding="utf-8") as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             content = f.read()
             text_preview = content[:1000] + "..." if len(content) > 1000 else content
 
@@ -246,14 +271,17 @@ async def get_result(task_id: str):
         # 查找元数据文件
         metadata_file = output_dir / "metadata.json"
 
+        # 确定输出格式
+        output_format = "markdown" if output_file.suffix == ".md" else "text"
+
         return ConversionResult(
             task_id=task_id,
             success=True,
-            output_file=str(md_file),
+            output_file=str(output_file),
             metadata_file=str(metadata_file) if metadata_file.exists() else None,
             image_paths=image_paths,
             processing_time=progress.get("processing_time"),
-            output_format="markdown",
+            output_format=output_format,
             text_preview=text_preview,
         )
 
@@ -323,15 +351,21 @@ async def download_result(task_id: str):
         if not output_dir.exists():
             raise HTTPException(status_code=404, detail="输出文件不存在")
 
-        # 查找markdown文件
-        md_files = list(output_dir.glob("*.md"))
-        if not md_files:
+        # 查找输出文件（支持markdown和txt格式）
+        output_files = list(output_dir.glob("*.md")) + list(output_dir.glob("*.txt"))
+        if not output_files:
             raise HTTPException(status_code=404, detail="未找到转换结果")
 
-        md_file = md_files[0]
+        output_file = output_files[0]
+
+        # 根据文件类型确定媒体类型
+        if output_file.suffix == ".md":
+            media_type = "text/markdown"
+        else:
+            media_type = "text/plain"
 
         return FileResponse(
-            path=md_file, filename=md_file.name, media_type="text/markdown"
+            path=output_file, filename=output_file.name, media_type=media_type
         )
 
     except HTTPException:

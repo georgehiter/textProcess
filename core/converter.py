@@ -161,6 +161,14 @@ class MarkerPDFConverter:
             progress_callback(100)
             progress_manager.complete_task(task_id, "转换完成")
 
+            # 输出统计信息
+            if self.output_format == "markdown" and text:
+                char_count = len(text)
+                print(f"\n✅ 转换完成!")
+                print(f"📝 提取字符数: {char_count:,}")
+            else:
+                print(f"\n✅ 转换完成!")
+
             result = {
                 "success": True,
                 "output_file": str(output_file),
@@ -211,6 +219,9 @@ class MarkerPDFConverter:
                     json.dump(content.model_dump(), f, ensure_ascii=False, indent=2)
                 else:
                     json.dump(content, f, ensure_ascii=False, indent=2)
+
+        # 输出保存路径信息
+        print(f"💾 已保存到: {output_file}")
 
         return output_file
 

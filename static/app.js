@@ -24,6 +24,7 @@ createApp({
 
         // 转换配置
         const config = reactive({
+            conversion_mode: 'marker',  // 转换方式选择
             output_format: 'markdown',  // 固定为markdown格式
             // use_llm: false,        // 前端隐藏，后端保持
             force_ocr: false,
@@ -37,7 +38,11 @@ createApp({
                 num_workers: 4,
                 torch_device: "cuda",
                 cuda_visible_devices: "0"
-            }
+            },
+            // OCR配置字段
+            enhance_quality: true,
+            language_detection: true,
+            document_type_detection: true
         })
 
         // 自定义配置

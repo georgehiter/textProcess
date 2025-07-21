@@ -24,8 +24,14 @@ class GPUConfig(BaseModel):
 
 
 class ConversionConfig(BaseModel):
-    """转换配置模型"""
+    """转换配置模型 - 扩展版"""
 
+    # 转换方式选择
+    conversion_mode: str = Field(
+        default="marker", description="转换方式: marker(文本PDF) 或 ocr(扫描PDF)"
+    )
+
+    # 现有Marker配置字段保持不变
     output_format: OutputFormat = Field(
         default=OutputFormat.markdown, description="输出格式"
     )
@@ -36,6 +42,13 @@ class ConversionConfig(BaseModel):
     format_lines: bool = Field(default=False, description="是否格式化行")
     disable_image_extraction: bool = Field(default=True, description="是否禁用图片提取")
     gpu_config: GPUConfig = Field(default_factory=GPUConfig, description="GPU配置")
+
+    # 新增OCR配置字段
+    enhance_quality: bool = Field(default=True, description="是否增强图像质量")
+    language_detection: bool = Field(default=True, description="是否启用语言检测")
+    document_type_detection: bool = Field(
+        default=True, description="是否启用文档类型检测"
+    )
 
 
 class ConversionRequest(BaseModel):
