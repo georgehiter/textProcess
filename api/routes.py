@@ -434,7 +434,7 @@ async def delete_task(task_id: str):
             shutil.rmtree(output_dir)
 
         # 删除临时文件
-        temp_dir = Path("templates") / task_id
+        temp_dir = Path("outputs") / f"{task_id}_temp"
         if temp_dir.exists():
             import shutil
 

@@ -226,7 +226,7 @@ createApp({
                 timeUpdateTimer = setInterval(() => {
                     // 更新当前时间，触发elapsedTime重新计算
                     currentTime.value = Date.now()
-                }, 1000)
+                }, 5000)
 
                 // 如果没有taskId，先上传文件
                 if (!taskId.value) {
@@ -317,7 +317,7 @@ createApp({
                 } catch (err) {
                     console.error('获取进度失败:', err)
                 }
-            }, 1000)
+            }, 2000)
         }
 
         const getResult = async () => {
@@ -516,12 +516,8 @@ createApp({
             // 设置marked选项
             marked.setOptions({
                 highlight: function (code, lang) {
-                    if (lang && hljs.getLanguage(lang)) {
-                        try {
-                            return hljs.highlight(code, { language: lang }).value
-                        } catch (err) { }
-                    }
-                    return hljs.highlightAuto(code).value
+                    // 直接返回原始代码，不进行高亮
+                    return code;
                 }
             })
         })

@@ -81,3 +81,4 @@ uploads/*
 outputs/*
 .cursor/rules/*
 tests/
+materials/

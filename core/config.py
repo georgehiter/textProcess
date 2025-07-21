@@ -43,15 +43,14 @@ class Settings:
     # 文件路径配置
     UPLOAD_FOLDER: str = "uploads"
     OUTPUT_FOLDER: str = "outputs"
-    LOG_FOLDER: str = "logs"
 
     def __post_init__(self):
         """初始化后处理"""
         if self.CORS_ORIGINS is None:
             self.CORS_ORIGINS = [
                 "http://localhost:3000",
-                "http://localhost:8000",
-                "http://127.0.0.1:8000",
+                "http://localhost:8001",
+                "http://127.0.0.1:8001",
                 "http://127.0.0.1:3000",
             ]
         if self.ALLOWED_EXTENSIONS is None:
@@ -101,7 +100,6 @@ class Settings:
         directories = [
             self.UPLOAD_FOLDER,
             self.OUTPUT_FOLDER,
-            self.LOG_FOLDER,
         ]
 
         for directory in directories:
@@ -135,7 +133,7 @@ class Settings:
 
     def get_temp_path(self, task_id: str) -> Path:
         """获取临时目录路径"""
-        return Path(self.LOG_FOLDER) / task_id
+        return Path(self.OUTPUT_FOLDER) / f"{task_id}_temp"
 
     def apply_gpu_environment(self):
         """应用GPU环境变量"""

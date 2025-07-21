@@ -500,6 +500,61 @@ body {
     min-width: auto;
 }
 
+/* 转换方式选择器样式 */
+.conversion-mode-selector {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.mode-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: var(--transition);
+    background-color: var(--surface-color);
+    min-height: 80px;
+}
+
+.mode-tab:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.mode-tab.active {
+    border-color: var(--primary-color);
+    background-color: #eff6ff;
+    box-shadow: var(--shadow-md);
+}
+
+.tab-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.tab-content {
+    flex: 1;
+}
+
+.tab-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.tab-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
 .config-presets {
     display: flex;
     gap: 0.5rem;
@@ -749,6 +804,15 @@ body {
         top: 1rem;
         right: 1rem;
         left: 1rem;
+    }
+
+    .conversion-mode-selector {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .mode-tab {
+        min-height: 70px;
     }
 
     .gpu-status {

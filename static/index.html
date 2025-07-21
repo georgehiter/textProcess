@@ -8,10 +8,8 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css">
+    <script src="/static/js/vue.global.js"></script>
+    <script src="/static/js/marked.min.js"></script>
 </head>
 
 <body>
@@ -61,18 +59,22 @@
                 <div class="config-group">
                     <h4>🔄 转换方式选择</h4>
                     <div class="conversion-mode-selector">
-                        <label class="radio-label">
-                            <input type="radio" name="conversion-mode" value="marker" v-model="config.conversion_mode">
-                            <span class="radio-text">
-                                <strong>Marker转换</strong> - 适用于文本版PDF，转换速度快，质量高
-                            </span>
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="conversion-mode" value="ocr" v-model="config.conversion_mode">
-                            <span class="radio-text">
-                                <strong>OCR转换</strong> - 适用于扫描版PDF，支持图像识别
-                            </span>
-                        </label>
+                        <div class="mode-tab" :class="{ 'active': config.conversion_mode === 'marker' }"
+                            @click="config.conversion_mode = 'marker'">
+                            <div class="tab-icon">📄</div>
+                            <div class="tab-content">
+                                <div class="tab-title">Marker转换</div>
+                                <div class="tab-subtitle">文本版PDF专用</div>
+                            </div>
+                        </div>
+                        <div class="mode-tab" :class="{ 'active': config.conversion_mode === 'ocr' }"
+                            @click="config.conversion_mode = 'ocr'">
+                            <div class="tab-icon">🔍</div>
+                            <div class="tab-content">
+                                <div class="tab-title">OCR转换</div>
+                                <div class="tab-subtitle">扫描版PDF专用</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
