@@ -10,6 +10,7 @@
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
     <script src="/static/js/vue.global.js"></script>
     <script src="/static/js/marked.min.js"></script>
+    <script src="/static/js/config-manager.js"></script>
 </head>
 
 <body>
@@ -55,12 +56,30 @@
             <div class="section config-section">
                 <h3>⚙️ 转换配置</h3>
 
+                <!-- 配置预设选择 -->
+                <div class="config-group" v-if="configManager && configManager.presets">
+                    <h4>🎯 配置预设</h4>
+                    <div class="preset-selector">
+                        <div class="preset-tabs">
+                            <div v-for="preset in configManager.presets" :key="preset.name" class="preset-tab"
+                                :class="{ 'active': selectedPreset === preset.name }"
+                                @click="selectPreset(preset.name)">
+                                <div class="preset-icon">{{ getPresetIcon(preset.name) }}</div>
+                                <div class="preset-content">
+                                    <div class="preset-title">{{ preset.name }}</div>
+                                    <div class="preset-description">{{ preset.description }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 转换方式选择 -->
                 <div class="config-group">
                     <h4>🔄 转换方式选择</h4>
                     <div class="conversion-mode-selector">
                         <div class="mode-tab" :class="{ 'active': config.conversion_mode === 'marker' }"
-                            @click="config.conversion_mode = 'marker'">
+                            @click="switchConversionMode('marker')">
                             <div class="tab-icon">📄</div>
                             <div class="tab-content">
                                 <div class="tab-title">Marker转换</div>
@@ -68,13 +87,48 @@
                             </div>
                         </div>
                         <div class="mode-tab" :class="{ 'active': config.conversion_mode === 'ocr' }"
-                            @click="config.conversion_mode = 'ocr'">
+                            @click="switchConversionMode('ocr')">
                             <div class="tab-icon">🔍</div>
                             <div class="tab-content">
                                 <div class="tab-title">OCR转换</div>
                                 <div class="tab-subtitle">扫描版PDF专用</div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 配置验证状态 -->
+                <div v-if="configValidation" class="config-validation">
+                    <div class="validation-status" :class="configValidation.valid ? 'valid' : 'invalid'">
+                        <div class="status-icon">{{ configValidation.valid ? '✅' : '❌' }}</div>
+                        <div class="status-content">
+                            <div class="status-title">
+                                {{ configValidation.valid ? '配置有效' : '配置存在问题' }}
+                            </div>
+                            <div class="status-summary">{{ configSummary }}</div>
+                        </div>
+                    </div>
+
+                    <!-- 配置建议 -->
+                    <div v-if="configValidation.suggestions && configValidation.suggestions.length > 0"
+                        class="config-suggestions">
+                        <h5>💡 配置建议</h5>
+                        <ul>
+                            <li v-for="suggestion in configValidation.suggestions" :key="suggestion">
+                                {{ suggestion }}
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- 配置警告 -->
+                    <div v-if="configValidation.warnings && configValidation.warnings.length > 0"
+                        class="config-warnings">
+                        <h5>⚠️ 配置警告</h5>
+                        <ul>
+                            <li v-for="warning in configValidation.warnings" :key="warning">
+                                {{ warning }}
+                            </li>
+                        </ul>
                     </div>
                 </div>
 
@@ -96,326 +150,162 @@
                     <small>当前仅支持Markdown格式输出</small>
                 </div>
 
-                <!-- LLM功能暂时隐藏，等待后端配置完成 -->
-
-                <!-- Marker转换配置 -->
-                <div v-if="config.conversion_mode === 'marker'" class="marker-config-section">
-                    <h4>🔍 Marker转换配置</h4>
-
-                    <!-- OCR优化配置 -->
-                    <div class="ocr-optimization-section">
-                        <h4>🔍 OCR优化设置</h4>
-
-                        <!-- 配置预设 -->
-                        <div class="config-presets">
-                            <button class="btn btn-secondary btn-sm" @click="applySpeedPreset">
-                                🚀 速度优先
-                            </button>
-                            <button class="btn btn-secondary btn-sm" @click="applyAccuracyPreset">
-                                🎯 准确性优先
-                            </button>
-                            <button class="btn btn-secondary btn-sm" @click="openCustomModal">
-                                ⚙️ 自定义模式
-                            </button>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.force_ocr">
-                                <span>强制使用OCR</span>
-                            </label>
-                            <small>对扫描版PDF强制使用OCR识别（不推荐，会降低速度）</small>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.strip_existing_ocr">
-                                <span>去除已有OCR文本</span>
-                            </label>
-                            <small>保留数字文本，去除重复的OCR文本（推荐开启）</small>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.format_lines">
-                                <span>重新格式化行</span>
-                            </label>
-                            <small>优化文本行格式（关闭可提升速度）</small>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.disable_image_extraction"
-                                    @change="handleMainImageExtractionChange">
-                                <span>禁用图片提取</span>
-                            </label>
-                            <small>跳过图片提取以提高速度（推荐开启）</small>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.save_images"
-                                    :disabled="config.disable_image_extraction">
-                                <span>保存提取的图片</span>
-                            </label>
-                            <small>保存PDF中的图片{{ config.disable_image_extraction ? '（已禁用图片提取）' : '（关闭可提升速度）' }}</small>
-                        </div>
-                    </div>
-
-                    <!-- OCR转换配置 -->
-                    <div v-if="config.conversion_mode === 'ocr'" class="ocr-config-section">
-                        <h4>🔍 OCR转换配置</h4>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.enhance_quality">
-                                <span>增强图像质量</span>
-                            </label>
-                            <small>对图像进行预处理以提高OCR识别准确性</small>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.language_detection">
-                                <span>启用语言检测</span>
-                            </label>
-                            <small>自动检测文档语言并选择最佳OCR配置</small>
-                        </div>
-
-                        <div class="config-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="config.document_type_detection">
-                                <span>启用文档类型检测</span>
-                            </label>
-                            <small>自动识别文档类型（表格、学术论文等）并优化配置</small>
-                        </div>
-                    </div>
-
-                    <!-- GPU加速设置 -->
-                    <div class="gpu-section">
-                        <h4>🔥 GPU加速设置</h4>
-
-                        <!-- GPU状态显示 -->
-                        <div class="gpu-status" v-if="gpuStatus">
-                            <div class="status-item">
-                                <span class="status-label">GPU状态:</span>
-                                <span class="status-value"
-                                    :class="{ 'available': gpuStatus.available, 'unavailable': !gpuStatus.available }">
-                                    {{ gpuStatus.available ? '✅ 可用' : '❌ 不可用' }}
-                                </span>
-                            </div>
-                            <div class="status-item" v-if="gpuStatus.available">
-                                <span class="status-label">设备:</span>
-                                <span class="status-value">{{ gpuStatus.device_name }}</span>
-                            </div>
-                            <div class="status-item" v-if="gpuStatus.available">
-                                <span class="status-label">内存:</span>
-                                <span class="status-value">{{ gpuStatus.memory_used?.toFixed(1) || 0 }}/{{
-                                    gpuStatus.memory_total?.toFixed(1) || 0 }} GB</span>
-                            </div>
-                            <div class="status-item" v-if="gpuStatus.available">
-                                <span class="status-label">CUDA版本:</span>
-                                <span class="status-value">{{ gpuStatus.cuda_version }}</span>
-                            </div>
-                        </div>
-
-                        <!-- GPU配置选项 -->
-                        <div class="gpu-config" v-if="gpuStatus && gpuStatus.available">
-                            <div class="config-group">
+                <!-- 高级配置选项 -->
+                <div class="config-group">
+                    <h4>🔧 高级配置</h4>
+                    <div class="advanced-config">
+                        <!-- Marker模式配置 -->
+                        <div v-if="config.conversion_mode === 'marker'" class="marker-config">
+                            <div class="config-row">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" v-model="config.gpu_config.enabled">
-                                    <span>启用GPU加速</span>
+                                    <input type="checkbox" v-model="config.gpu.enabled">
+                                    <span class="checkmark"></span>
+                                    启用GPU加速
                                 </label>
-                                <small>使用GPU加速转换过程，大幅提升性能（默认关闭，需要时手动开启）</small>
+                                <small>使用GPU加速可显著提升转换速度</small>
                             </div>
 
-                            <div class="gpu-advanced" v-if="config.gpu_config.enabled">
-                                <div class="config-group">
+                            <div v-if="config.gpu.enabled" class="gpu-config">
+                                <div class="config-row">
                                     <label>GPU设备数量</label>
-                                    <select v-model="config.gpu_config.num_devices" class="form-control">
-                                        <option v-for="n in Math.min(8, gpuStatus.device_count)" :key="n" :value="n">{{
-                                            n }}</option>
-                                    </select>
-                                    <small>选择使用的GPU设备数量</small>
+                                    <input type="number" v-model="config.gpu.num_devices" min="1" max="8"
+                                        class="form-control">
                                 </div>
-
-                                <div class="config-group">
+                                <div class="config-row">
                                     <label>工作进程数</label>
-                                    <select v-model="config.gpu_config.num_workers" class="form-control">
-                                        <option v-for="n in 16" :key="n" :value="n">{{ n }}</option>
-                                    </select>
-                                    <small>GPU工作进程数量</small>
+                                    <input type="number" v-model="config.gpu.num_workers" min="1" max="16"
+                                        class="form-control">
                                 </div>
+                            </div>
 
-
-
-                                <div class="config-group">
-                                    <label>PyTorch设备</label>
-                                    <select v-model="config.gpu_config.torch_device" class="form-control">
-                                        <option value="cuda">CUDA (GPU)</option>
-                                        <option value="cpu">CPU</option>
-                                    </select>
-                                    <small>选择计算设备</small>
-                                </div>
+                            <div class="config-row">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" v-model="config.use_llm">
+                                    <span class="checkmark"></span>
+                                    使用LLM增强准确性
+                                </label>
+                                <small>启用LLM可提升转换质量，但会增加处理时间</small>
                             </div>
                         </div>
 
-                        <div class="gpu-info" v-else-if="gpuStatus && !gpuStatus.available">
-                            <div class="info-message">
-                                <p>⚠️ GPU不可用，将使用CPU模式进行转换</p>
-                                <small>请确保已安装CUDA和PyTorch GPU版本</small>
+                        <!-- OCR模式配置 -->
+                        <div v-if="config.conversion_mode === 'ocr'" class="ocr-config">
+                            <div class="config-row">
+                                <label>OCR质量模式</label>
+                                <select v-model="config.ocr_quality" class="form-control">
+                                    <option value="fast">快速模式</option>
+                                    <option value="balanced">平衡模式</option>
+                                    <option value="accurate">高精度模式</option>
+                                </select>
+                            </div>
+
+                            <div class="config-row">
+                                <label>目标语言</label>
+                                <div class="language-selector">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" v-model="config.target_languages" value="chi_sim">
+                                        <span class="checkmark"></span>
+                                        中文简体
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" v-model="config.target_languages" value="eng">
+                                        <span class="checkmark"></span>
+                                        英文
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="config-row">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" v-model="config.enhance_quality">
+                                    <span class="checkmark"></span>
+                                    增强图像质量
+                                </label>
+                            </div>
+
+                            <div class="config-row">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" v-model="config.language_detection">
+                                    <span class="checkmark"></span>
+                                    智能语言检测
+                                </label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 转换控制区域 -->
-                <div class="section action-section">
-                    <button class="btn btn-primary" :disabled="!uploadedFile || isConverting" @click="startConversion">
+                <!-- 操作按钮 -->
+                <div class="action-buttons">
+                    <button class="btn btn-primary" @click="startConversion" :disabled="!uploadedFile || isConverting">
                         {{ isConverting ? '转换中...' : '开始转换' }}
                     </button>
-                    <button v-if="uploadedFile" class="btn btn-secondary" @click="removeFile">
-                        重新选择文件
+                    <button class="btn btn-secondary" @click="validateCurrentConfig">
+                        验证配置
+                    </button>
+                    <button class="btn btn-outline" @click="resetConfig">
+                        重置配置
                     </button>
                 </div>
+            </div>
 
-                <!-- 转换进度区域 -->
-                <div v-if="isConverting" class="section progress-section">
-                    <h3>🔄 转换进度</h3>
-
-                    <div class="progress-details">
-                        <div class="detail-item">
-                            <strong>转换进度:</strong> {{ elapsedTime }}
-                        </div>
+            <!-- 转换进度区域 -->
+            <div v-if="isConverting" class="section progress-section">
+                <h3>🔄 转换进度</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" :style="{ width: progress + '%' }"></div>
                     </div>
-
-                    <div v-if="error" class="error-message">
-                        <strong>错误:</strong> {{ error }}
-                    </div>
-                </div>
-
-                <!-- 结果展示区域 -->
-                <div v-if="showResult" class="section result-section">
-                    <h3>✅ 转换结果</h3>
-
-                    <div class="result-actions">
-                        <button class="btn btn-primary" @click="downloadResult">
-                            下载Markdown文件
-                        </button>
-                        <button v-if="hasImages" class="btn btn-secondary" @click="downloadImages">
-                            📦 下载图片压缩包
-                        </button>
-                        <button class="btn btn-secondary" @click="startNewConversion">
-                            重新转换
-                        </button>
-                    </div>
-
-                    <div class="result-info">
-                        <div class="info-item">
-                            <strong>处理时间:</strong> {{ elapsedTime }}
-                        </div>
-                        <div v-if="hasImages" class="info-item">
-                            <strong>提取图片:</strong> {{ imageCount }} 张
-                        </div>
-                    </div>
-
-                    <div class="preview-section">
-                        <h4>内容预览</h4>
-                        <div class="markdown-preview" v-html="renderedPreview"></div>
-                    </div>
-                </div>
-
-                <!-- 错误提示 -->
-                <div v-if="error" class="error-toast" @click="clearError">
-                    <div class="error-content">
-                        <span class="error-icon">⚠️</span>
-                        <span class="error-text">{{ error }}</span>
-                        <span class="error-close">×</span>
-                    </div>
-                </div>
-
-                <!-- 自定义配置模态框 -->
-                <div v-if="showCustomModal" class="modal-overlay" @click="showCustomModal = false">
-                    <div class="modal-content" @click.stop>
-                        <div class="modal-header">
-                            <h3>⚙️ 自定义配置</h3>
-                            <button class="modal-close" @click="showCustomModal = false">×</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="custom-config-section">
-                                <h4>🔍 OCR设置</h4>
-                                <div class="custom-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" v-model="customConfig.force_ocr">
-                                        <span>强制使用OCR</span>
-                                    </label>
-                                    <small>对扫描版PDF强制使用OCR识别</small>
-                                </div>
-                                <div class="custom-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" v-model="customConfig.strip_existing_ocr">
-                                        <span>去除已有OCR文本</span>
-                                    </label>
-                                    <small>保留数字文本，去除重复的OCR文本</small>
-                                </div>
-                            </div>
-
-                            <div class="custom-config-section">
-                                <h4>📝 文本处理</h4>
-                                <div class="custom-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" v-model="customConfig.format_lines">
-                                        <span>重新格式化行</span>
-                                    </label>
-                                    <small>优化文本行格式</small>
-                                </div>
-                            </div>
-
-                            <div class="custom-config-section">
-                                <h4>🖼️ 图片处理</h4>
-                                <div class="custom-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" v-model="customConfig.disable_image_extraction"
-                                            @change="handleImageExtractionChange">
-                                        <span>禁用图片提取</span>
-                                    </label>
-                                    <small>跳过图片提取以提高速度</small>
-                                </div>
-                                <div class="custom-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" v-model="customConfig.save_images"
-                                            :disabled="customConfig.disable_image_extraction">
-                                        <span>保存提取的图片</span>
-                                    </label>
-                                    <small>保存PDF中的图片{{ customConfig.disable_image_extraction ? '（已禁用图片提取）' : ''
-                                        }}</small>
-                                </div>
-                            </div>
-
-                            <div class="custom-config-section">
-                                <h4>🚀 性能设置</h4>
-                                <div class="custom-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" v-model="customConfig.gpu_enabled">
-                                        <span>启用GPU加速</span>
-                                    </label>
-                                    <small>使用GPU加速转换过程</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button class="btn btn-secondary" @click="showCustomModal = false">
-                                取消
-                            </button>
-                            <button class="btn btn-primary" @click="applyCustomConfig">
-                                应用配置
-                            </button>
-                        </div>
+                    <div class="progress-info">
+                        <span class="progress-text">{{ progress.toFixed(1) }}%</span>
+                        <span class="progress-time">{{ elapsedTime }}</span>
                     </div>
                 </div>
             </div>
 
-            <script src="/static/app.js"></script>
+            <!-- 错误提示 -->
+            <div v-if="error" class="section error-section">
+                <div class="error-message">
+                    <div class="error-icon">❌</div>
+                    <div class="error-content">
+                        <h4>转换失败</h4>
+                        <p>{{ error }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结果展示区域 -->
+            <div v-if="showResult" class="section result-section">
+                <h3>📄 转换结果</h3>
+                <div class="result-container">
+                    <div class="result-header">
+                        <div class="result-info">
+                            <h4>转换完成</h4>
+                            <p>处理时间: {{ processingTime }}秒</p>
+                            <p v-if="hasImages">包含 {{ imageCount }} 张图片</p>
+                        </div>
+                        <div class="result-actions">
+                            <button class="btn btn-primary" @click="downloadResult">
+                                下载Markdown
+                            </button>
+                            <button v-if="hasImages" class="btn btn-secondary" @click="downloadImages">
+                                下载图片包
+                            </button>
+                            <button class="btn btn-outline" @click="startNewConversion">
+                                重新转换
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="result-preview">
+                        <h5>预览</h5>
+                        <div class="preview-container" v-html="renderedPreview"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
 </body>
 
 </html>

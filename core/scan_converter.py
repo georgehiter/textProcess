@@ -6,17 +6,29 @@
 import asyncio
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from scan_pdf_ocr.scan_pdf_ocr import extract_scan_pdf
 from utils.progress import progress_manager, ProgressCallback
 from utils.file_handler import FileHandler
+from utils.config_adapter import ConfigAdapter
 
 
 class ScanPDFConverter:
     """扫描版PDF转换器适配层"""
 
-    def __init__(self, config: dict):
-        self.config = config
+    def __init__(self, config: Union[Dict[str, Any], str]):
+        """
+        初始化扫描转换器 - 支持新旧两种配置方式
+
+        Args:
+            config: 配置字典或输出格式字符串
+        """
+        if isinstance(config, dict):
+            # 新配置格式
+            self.config = config
+        else:
+            # 旧配置格式 - 兼容性支持
+            self.config = {"output_format": config}
 
     async def convert_pdf_async(
         self, pdf_path: str, task_id: str, output_dir: Optional[str] = None
@@ -110,10 +122,17 @@ class ScanPDFConverter:
         # 确保输出目录存在
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # 提取OCR配置参数
+        enhance_quality = self.config.get("enhance_quality", True)
+        language_detection = self.config.get("language_detection", True)
+        document_type_detection = self.config.get("document_type_detection", True)
+        ocr_quality = self.config.get("ocr_quality", "balanced")
+        target_languages = self.config.get("target_languages", ["chi_sim", "eng"])
+
         result = extract_scan_pdf(
             pdf_path=pdf_path,
             output_path=str(output_file),
-            enhance_quality=self.config.get("enhance_quality", True),
+            enhance_quality=enhance_quality,
             output_format=output_format,
         )
 
@@ -138,16 +157,36 @@ async def scan_convert_pdf_task(
     pdf_path: str, task_id: str, config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    执行OCR转换任务
+    执行OCR转换任务 - 支持新旧配置格式
 
     Args:
         pdf_path: PDF文件路径
         task_id: 任务ID
-        config: 转换配置
+        config: 转换配置（支持新旧格式）
 
     Returns:
         转换结果
     """
-    converter = ScanPDFConverter(config)
+    # 使用配置适配器处理配置
+    try:
+        # 检测配置版本并适配
+        if ConfigAdapter.validate_config(config):
+            # 新配置格式，直接使用
+            converter = ScanPDFConverter(config=config)
+        else:
+            # 旧配置格式，需要适配
+            print("⚠️ 检测到旧OCR配置格式，正在适配...")
+            converter = ScanPDFConverter(config=config)
+
+        # 记录配置摘要
+        config_summary = ConfigAdapter.get_config_summary(converter)
+        print(f"🔧 OCR转换配置: {config_summary}")
+
+    except Exception as e:
+        print(f"❌ OCR配置处理失败: {str(e)}")
+        # 使用默认配置作为后备
+        converter = ScanPDFConverter({"output_format": "markdown"})
+        print("⚠️ 使用默认OCR配置继续转换")
+
     output_dir = FileHandler.ensure_output_directory(task_id)
     return await converter.convert_pdf_async(pdf_path, task_id, output_dir)

@@ -3,47 +3,50 @@ import json
 import time
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.config.parser import ConfigParser
 from marker.output import text_from_rendered
 from utils.progress import progress_manager, ProgressCallback
 from utils.file_handler import FileHandler
+from utils.config_adapter import ConfigAdapter
 from core.config import settings
 
 
 class MarkerPDFConverter:
     """Marker PDF 转换器封装类"""
 
-    def __init__(
-        self,
-        output_format: str = "markdown",
-        use_llm: bool = False,
-        force_ocr: bool = False,
-        save_images: bool = False,  # 优化：关闭图片保存以提升速度
-        format_lines: bool = False,  # 关闭行格式化以提升速度
-        disable_image_extraction: bool = True,  # 优化：禁用图片提取以提升速度
-        strip_existing_ocr: bool = True,  # 新增：去除已有OCR文本以提升速度
-    ):
+    def __init__(self, config: Union[Dict[str, Any], str] = "markdown", **kwargs):
         """
-        初始化转换器
+        初始化转换器 - 支持新旧两种配置方式
 
         Args:
-            output_format: 输出格式 ("markdown", "json", "html", "chunks")
-            use_llm: 是否使用 LLM 提升准确性
-            force_ocr: 是否强制使用OCR
-            save_images: 是否保存提取的图片
-            format_lines: 是否重新格式化行
-            disable_image_extraction: 是否禁用图片提取
+            config: 配置字典或输出格式字符串
+            **kwargs: 兼容旧版本的参数
         """
-        self.output_format = output_format
-        self.use_llm = use_llm
-        self.force_ocr = force_ocr
-        self.save_images = save_images
-        self.format_lines = format_lines
-        self.disable_image_extraction = disable_image_extraction
-        self.strip_existing_ocr = strip_existing_ocr
+        # 处理配置参数
+        if isinstance(config, dict):
+            # 新配置格式
+            self.output_format = config.get("output_format", "markdown")
+            self.use_llm = config.get("use_llm", False)
+            self.force_ocr = config.get("force_ocr", False)
+            self.save_images = config.get("save_images", False)
+            self.format_lines = config.get("format_lines", False)
+            self.disable_image_extraction = config.get("disable_image_extraction", True)
+            self.strip_existing_ocr = config.get("strip_existing_ocr", True)
+            self.gpu_config = config.get("gpu_config", {})
+        else:
+            # 旧配置格式 - 兼容性支持
+            self.output_format = config
+            self.use_llm = kwargs.get("use_llm", False)
+            self.force_ocr = kwargs.get("force_ocr", False)
+            self.save_images = kwargs.get("save_images", False)
+            self.format_lines = kwargs.get("format_lines", False)
+            self.disable_image_extraction = kwargs.get("disable_image_extraction", True)
+            self.strip_existing_ocr = kwargs.get("strip_existing_ocr", True)
+            self.gpu_config = kwargs.get("gpu_config", {})
+
         self.converter = None
 
         # 应用GPU配置
@@ -52,8 +55,12 @@ class MarkerPDFConverter:
 
     def _apply_gpu_config(self):
         """应用GPU配置"""
-        # 直接应用GPU环境变量
-        settings.apply_gpu_environment()
+        if self.gpu_config and self.gpu_config.get("enabled", False):
+            # 使用新的GPU配置
+            ConfigAdapter.apply_gpu_config(self.gpu_config)
+        else:
+            # 使用默认GPU配置
+            settings.apply_gpu_environment()
 
     def _setup_converter(self):
         """设置转换器配置"""
@@ -73,6 +80,7 @@ class MarkerPDFConverter:
         print(f"   - save_images: {self.save_images}")
         print(f"   - format_lines: {self.format_lines}")
         print(f"   - disable_image_extraction: " f"{self.disable_image_extraction}")
+        print(f"   - gpu_enabled: {self.gpu_config.get('enabled', False)}")
 
         config_parser = ConfigParser(config)
 
@@ -309,25 +317,45 @@ async def convert_pdf_task(
     pdf_path: str, task_id: str, config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    执行PDF转换任务
+    执行PDF转换任务 - 支持新旧配置格式
 
     Args:
         pdf_path: PDF文件路径
         task_id: 任务ID
-        config: 转换配置
+        config: 转换配置（支持新旧格式）
 
     Returns:
         转换结果
     """
-    converter = MarkerPDFConverter(
-        output_format=config.get("output_format", "markdown"),
-        use_llm=config.get("use_llm", False),
-        force_ocr=config.get("force_ocr", False),
-        save_images=config.get("save_images", False),
-        format_lines=config.get("format_lines", False),
-        disable_image_extraction=config.get("disable_image_extraction", True),
-        strip_existing_ocr=config.get("strip_existing_ocr", True),
-    )
+    # 使用配置适配器处理配置
+    try:
+        # 检测配置版本并适配
+        if ConfigAdapter.validate_config(config):
+            # 新配置格式，直接使用
+            converter = MarkerPDFConverter(config=config)
+        else:
+            # 旧配置格式，需要适配
+            print("⚠️ 检测到旧配置格式，正在适配...")
+            converter = MarkerPDFConverter(
+                output_format=config.get("output_format", "markdown"),
+                use_llm=config.get("use_llm", False),
+                force_ocr=config.get("force_ocr", False),
+                save_images=config.get("save_images", False),
+                format_lines=config.get("format_lines", False),
+                disable_image_extraction=config.get("disable_image_extraction", True),
+                strip_existing_ocr=config.get("strip_existing_ocr", True),
+                gpu_config=config.get("gpu_config", {}),
+            )
+
+        # 记录配置摘要
+        config_summary = ConfigAdapter.get_config_summary(converter)
+        print(f"🔧 转换配置: {config_summary}")
+
+    except Exception as e:
+        print(f"❌ 配置处理失败: {str(e)}")
+        # 使用默认配置作为后备
+        converter = MarkerPDFConverter()
+        print("⚠️ 使用默认配置继续转换")
 
     output_dir = FileHandler.ensure_output_directory(task_id)
     return await converter.convert_pdf_async(pdf_path, task_id, output_dir)

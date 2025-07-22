@@ -3,36 +3,39 @@ const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue
 createApp({
     setup() {
         // 响应式数据
-        // const currentStep = ref(1)  // 注释掉步骤控制
         const uploadedFile = ref(null)
         const isDragOver = ref(false)
         const taskId = ref(null)
         const progress = ref(0)
         const startTime = ref(null)
-        const currentTime = ref(Date.now())  // 当前时间，用于触发更新
-        const finalTime = ref(null)  // 转换完成时的最终时间
+        const currentTime = ref(Date.now())
+        const finalTime = ref(null)
         const error = ref('')
         const processingTime = ref(0)
-        // const imageCount = ref(0)  // 注释掉图片计数
         const textPreview = ref('')
         const gpuStatus = ref(null)
         const isConverting = ref(false)
         const showResult = ref(false)
-        const showCustomModal = ref(false)
         const hasImages = ref(false)
         const imageCount = ref(0)
 
-        // 转换配置
+        // 配置管理器
+        const configManager = ref(null)
+        const selectedPreset = ref(null)
+        const configValidation = ref(null)
+        const configSummary = ref('')
+
+        // 转换配置 - 使用V2格式
         const config = reactive({
-            conversion_mode: 'marker',  // 转换方式选择
-            output_format: 'markdown',  // 固定为markdown格式
-            // use_llm: false,        // 前端隐藏，后端保持
+            conversion_mode: 'marker',
+            output_format: 'markdown',
+            use_llm: false,
             force_ocr: false,
-            strip_existing_ocr: true,   // 新增：去除已有OCR文本
-            save_images: false,         // 优化：关闭图片保存
-            format_lines: false,        // 优化：关闭行格式化
-            disable_image_extraction: true,  // 优化：禁用图片提取
-            gpu_config: {
+            strip_existing_ocr: true,
+            save_images: false,
+            format_lines: false,
+            disable_image_extraction: true,
+            gpu: {
                 enabled: false,
                 num_devices: 1,
                 num_workers: 4,
@@ -42,42 +45,25 @@ createApp({
             // OCR配置字段
             enhance_quality: true,
             language_detection: true,
-            document_type_detection: true
-        })
-
-        // 自定义配置
-        const customConfig = reactive({
-            force_ocr: false,
-            strip_existing_ocr: true,
-            format_lines: false,
-            disable_image_extraction: true,
-            save_images: false,
-            gpu_enabled: false,
-            num_devices: 1,
-            num_workers: 4,
-            torch_device: "cuda",
-            cuda_visible_devices: "0"
+            document_type_detection: true,
+            ocr_quality: 'balanced',
+            target_languages: ['chi_sim', 'eng']
         })
 
         // 进度轮询定时器
         let progressTimer = null
-        // 时间更新定时器
         let timeUpdateTimer = null
 
         // 计算属性
         const renderedPreview = computed(() => {
             if (!textPreview.value) return ''
 
-            // 处理markdown中的图片链接，将相对路径转换为API路径
             let processedText = textPreview.value
             if (taskId.value) {
-                // 匹配markdown图片语法 ![alt](path)
                 processedText = processedText.replace(
                     /!\[([^\]]*)\]\(([^)]+)\)/g,
                     (match, alt, path) => {
-                        // 如果是相对路径（不以http开头），转换为API路径
                         if (!path.startsWith('http')) {
-                            // 提取文件名
                             const filename = path.split('/').pop()
                             return `![${alt}](/api/images/${taskId.value}/${filename})`
                         }
@@ -89,24 +75,22 @@ createApp({
             return marked.parse(processedText)
         })
 
-        // 计算已用时间
         const elapsedTime = computed(() => {
             if (!startTime.value) return '0.0秒'
 
-            // 优先使用最终时间，如果没有则使用当前时间
             const endTime = finalTime.value || currentTime.value
             const elapsed = (endTime - startTime.value) / 1000
 
             if (elapsed < 60) {
                 return `${elapsed.toFixed(1)}秒`
-            } else if (elapsed < 3600) {
-                return `${(elapsed / 60).toFixed(1)}分钟`
             } else {
-                return `${(elapsed / 3600).toFixed(1)}小时`
+                const minutes = Math.floor(elapsed / 60)
+                const seconds = elapsed % 60
+                return `${minutes}分${seconds.toFixed(0)}秒`
             }
         })
 
-        // 方法
+        // 工具函数
         const formatFileSize = (bytes) => {
             if (bytes === 0) return '0 Bytes'
             const k = 1024
@@ -118,29 +102,112 @@ createApp({
         const loadGPUStatus = async () => {
             try {
                 const response = await fetch('/api/gpu-status')
-                const status = await response.json()
-                gpuStatus.value = status
-
-                // 如果GPU不可用，禁用GPU配置
-                if (!status.available) {
-                    config.gpu_config.enabled = false
+                if (response.ok) {
+                    gpuStatus.value = await response.json()
                 }
-            } catch (err) {
-                console.error('获取GPU状态失败:', err)
-                gpuStatus.value = {
-                    available: false,
-                    device_count: 0,
-                    device_name: null,
-                    memory_total: null,
-                    memory_used: null,
-                    memory_free: null,
-                    cuda_version: null,
-                    pytorch_version: null,
-                    current_config: config.gpu_config
-                }
+            } catch (error) {
+                console.error('加载GPU状态失败:', error)
             }
         }
 
+        // 配置管理函数
+        const initConfigManager = async () => {
+            try {
+                configManager.value = new ConfigManager()
+                const success = await configManager.value.init()
+                if (success) {
+                    console.log('配置管理器初始化成功')
+                    // 应用默认预设
+                    await selectPreset('快速Marker转换')
+                }
+            } catch (error) {
+                console.error('配置管理器初始化失败:', error)
+            }
+        }
+
+        const selectPreset = async (presetName) => {
+            try {
+                if (!configManager.value) return
+
+                const result = await configManager.value.applyPreset(presetName)
+                Object.assign(config, result.config)
+                selectedPreset.value = presetName
+                configValidation.value = result.validation
+                configSummary.value = configManager.value.getConfigSummary(config)
+
+                console.log(`应用预设: ${presetName}`)
+            } catch (error) {
+                console.error('应用预设失败:', error)
+                showError(`应用预设失败: ${error.message}`)
+            }
+        }
+
+        const switchConversionMode = async (mode) => {
+            config.conversion_mode = mode
+
+            // 根据模式选择默认预设
+            if (mode === 'marker') {
+                await selectPreset('快速Marker转换')
+            } else if (mode === 'ocr') {
+                await selectPreset('快速OCR转换')
+            }
+        }
+
+        const validateCurrentConfig = async () => {
+            try {
+                if (!configManager.value) return
+
+                const validation = await configManager.value.validateConfig(config)
+                configValidation.value = validation
+                configSummary.value = configManager.value.getConfigSummary(config)
+
+                if (!validation.valid) {
+                    showError(`配置验证失败: ${validation.errors.join(', ')}`)
+                } else {
+                    console.log('配置验证通过')
+                }
+            } catch (error) {
+                console.error('配置验证失败:', error)
+                showError(`配置验证失败: ${error.message}`)
+            }
+        }
+
+        const resetConfig = () => {
+            // 重置为默认配置
+            Object.assign(config, configManager.value?.createDefaultConfig(config.conversion_mode) || {
+                conversion_mode: 'marker',
+                output_format: 'markdown',
+                use_llm: false,
+                force_ocr: false,
+                strip_existing_ocr: true,
+                save_images: false,
+                format_lines: false,
+                disable_image_extraction: true,
+                gpu: {
+                    enabled: false,
+                    num_devices: 1,
+                    num_workers: 4,
+                    torch_device: "cuda",
+                    cuda_visible_devices: "0"
+                }
+            })
+
+            selectedPreset.value = null
+            configValidation.value = null
+            configSummary.value = ''
+        }
+
+        const getPresetIcon = (presetName) => {
+            const icons = {
+                '快速Marker转换': '🚀',
+                'GPU加速Marker转换': '🔥',
+                '高精度OCR转换': '🎯',
+                '快速OCR转换': '⚡'
+            }
+            return icons[presetName] || '⚙️'
+        }
+
+        // 文件处理函数
         const handleDragOver = (e) => {
             e.preventDefault()
             isDragOver.value = true
@@ -157,373 +224,237 @@ createApp({
 
             const files = e.dataTransfer.files
             if (files.length > 0) {
-                const file = files[0]
-                if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-                    uploadedFile.value = file
-                    taskId.value = null  // 重置任务ID，确保新文件会重新上传
-                } else {
-                    showError('请选择PDF文件')
-                }
+                handleFile(files[0])
             }
         }
 
         const handleFileSelect = (e) => {
             const file = e.target.files[0]
             if (file) {
-                uploadedFile.value = file
-                taskId.value = null  // 重置任务ID，确保新文件会重新上传
+                handleFile(file)
             }
+        }
+
+        const handleFile = (file) => {
+            if (file.type !== 'application/pdf') {
+                showError('请选择PDF文件')
+                return
+            }
+
+            if (file.size > 100 * 1024 * 1024) {
+                showError('文件大小不能超过100MB')
+                return
+            }
+
+            uploadedFile.value = file
+            clearError()
         }
 
         const removeFile = () => {
             uploadedFile.value = null
-            taskId.value = null  // 重置任务ID，确保下次会重新上传
-            if (currentStep.value > 1) {
-                currentStep.value = 1
-            }
+            clearError()
         }
 
         const uploadFile = async () => {
-            if (!uploadedFile.value) return
+            if (!uploadedFile.value) {
+                showError('请先选择文件')
+                return
+            }
+
+            const formData = new FormData()
+            formData.append('file', uploadedFile.value)
 
             try {
-                const formData = new FormData()
-                formData.append('file', uploadedFile.value)
-
                 const response = await fetch('/api/upload', {
                     method: 'POST',
                     body: formData
                 })
 
-                const result = await response.json()
+                if (!response.ok) {
+                    throw new Error(`上传失败: ${response.status}`)
+                }
 
+                const result = await response.json()
                 if (result.success) {
                     taskId.value = result.task_id
-                    // currentStep.value = 2  // 删除步骤控制
+                    return true
                 } else {
-                    showError(result.message || '文件上传失败')
+                    throw new Error(result.message || '上传失败')
                 }
-            } catch (err) {
-                showError('文件上传失败: ' + err.message)
+            } catch (error) {
+                showError(`文件上传失败: ${error.message}`)
+                return false
             }
         }
 
+        // 转换函数
         const startConversion = async () => {
             if (!uploadedFile.value) {
-                showError('请先选择PDF文件')
+                showError('请先选择文件')
                 return
             }
 
             try {
-                isConverting.value = true  // 设置转换状态
-                showResult.value = false   // 隐藏结果
-                startTime.value = Date.now()  // 记录开始时间
-
-                // 启动时间更新定时器
-                if (timeUpdateTimer) {
-                    clearInterval(timeUpdateTimer)
-                }
-                timeUpdateTimer = setInterval(() => {
-                    // 更新当前时间，触发elapsedTime重新计算
-                    currentTime.value = Date.now()
-                }, 5000)
-
-                // 如果没有taskId，先上传文件
-                if (!taskId.value) {
-                    const formData = new FormData()
-                    formData.append('file', uploadedFile.value)
-
-                    const uploadResponse = await fetch('/api/upload', {
-                        method: 'POST',
-                        body: formData
-                    })
-
-                    const uploadResult = await uploadResponse.json()
-
-                    if (!uploadResult.success) {
-                        isConverting.value = false
-                        showError(uploadResult.message || '文件上传失败')
-                        return
-                    }
-
-                    taskId.value = uploadResult.task_id
+                // 验证配置
+                await validateCurrentConfig()
+                if (configValidation.value && !configValidation.value.valid) {
+                    showError('配置验证失败，请检查配置')
+                    return
                 }
 
-                // 添加调试日志
-                const requestConfig = {
-                    ...config,
-                    use_llm: false      // 确保后端收到false
-                }
-                console.log('🔍 [DEBUG] 前端发送的配置:', requestConfig)
-                console.log('🔍 [DEBUG] force_ocr值:', requestConfig.force_ocr)
+                // 上传文件
+                const uploadSuccess = await uploadFile()
+                if (!uploadSuccess) return
 
                 // 开始转换
-                const response = await fetch('/api/convert', {
+                isConverting.value = true
+                startTime.value = Date.now()
+                clearError()
+
+                const response = await fetch('/api/v2/convert-v2', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         task_id: taskId.value,
-                        config: requestConfig
+                        config: config
                     })
                 })
 
-                const result = await response.json()
+                if (!response.ok) {
+                    throw new Error(`转换失败: ${response.status}`)
+                }
 
+                const result = await response.json()
                 if (result.success) {
                     startProgressPolling()
                 } else {
-                    isConverting.value = false  // 重置状态
-                    showError(result.message || '转换启动失败')
+                    throw new Error(result.message || '转换失败')
                 }
-            } catch (err) {
-                isConverting.value = false  // 重置状态
-                showError('转换启动失败: ' + err.message)
+            } catch (error) {
+                showError(`转换失败: ${error.message}`)
+                isConverting.value = false
             }
         }
 
         const startProgressPolling = () => {
-            if (progressTimer) {
-                clearInterval(progressTimer)
-            }
+            if (progressTimer) clearInterval(progressTimer)
+            if (timeUpdateTimer) clearInterval(timeUpdateTimer)
 
             progressTimer = setInterval(async () => {
                 try {
                     const response = await fetch(`/api/progress/${taskId.value}`)
-                    const data = await response.json()
+                    if (response.ok) {
+                        const data = await response.json()
+                        progress.value = data.progress || 0
 
-                    progress.value = data.progress || 0
-
-                    if (data.status === 'completed') {
-                        clearInterval(progressTimer)
-                        if (timeUpdateTimer) {
-                            clearInterval(timeUpdateTimer)
-                            timeUpdateTimer = null
+                        if (data.status === 'completed') {
+                            finalTime.value = Date.now()
+                            processingTime.value = (finalTime.value - startTime.value) / 1000
+                            await getResult()
+                        } else if (data.status === 'failed') {
+                            throw new Error(data.error || '转换失败')
                         }
-                        finalTime.value = Date.now()  // 记录完成时间
-                        isConverting.value = false  // 重置转换状态
-                        await getResult()
-                    } else if (data.status === 'failed') {
-                        clearInterval(progressTimer)
-                        if (timeUpdateTimer) {
-                            clearInterval(timeUpdateTimer)
-                            timeUpdateTimer = null
-                        }
-                        finalTime.value = Date.now()  // 记录失败时间
-                        isConverting.value = false  // 重置转换状态
-                        showError(data.error || '转换失败')
                     }
-                } catch (err) {
-                    console.error('获取进度失败:', err)
+                } catch (error) {
+                    showError(`进度查询失败: ${error.message}`)
+                    clearInterval(progressTimer)
+                    isConverting.value = false
                 }
-            }, 2000)
+            }, 1000)
+
+            timeUpdateTimer = setInterval(() => {
+                currentTime.value = Date.now()
+            }, 100)
         }
 
         const getResult = async () => {
             try {
                 const response = await fetch(`/api/result/${taskId.value}`)
-                const result = await response.json()
-
-                if (result.success) {
-                    // processingTime.value = result.processing_time || 0  // 不再需要后端时间
-                    imageCount.value = result.image_paths?.length || 0
-                    hasImages.value = imageCount.value > 0
-                    textPreview.value = result.text_preview || ''
-                    showResult.value = true  // 显示结果
-                    // currentStep.value = 4  // 删除步骤控制
-                } else {
-                    showError(result.error || '获取结果失败')
+                if (response.ok) {
+                    const data = await response.json()
+                    textPreview.value = data.content || ''
+                    hasImages.value = data.has_images || false
+                    imageCount.value = data.image_count || 0
+                    showResult.value = true
                 }
-            } catch (err) {
-                showError('获取结果失败: ' + err.message)
+            } catch (error) {
+                showError(`获取结果失败: ${error.message}`)
+            } finally {
+                isConverting.value = false
+                if (progressTimer) clearInterval(progressTimer)
+                if (timeUpdateTimer) clearInterval(timeUpdateTimer)
             }
         }
 
         const downloadResult = async () => {
-            if (!taskId.value) return
-
             try {
                 const response = await fetch(`/api/download/${taskId.value}`)
-                const blob = await response.blob()
-
-                const url = window.URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = uploadedFile.value?.name?.replace('.pdf', '.md') || 'converted.md'
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                window.URL.revokeObjectURL(url)
-            } catch (err) {
-                showError('下载失败: ' + err.message)
+                if (response.ok) {
+                    const blob = await response.blob()
+                    const url = window.URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${uploadedFile.value.name.replace('.pdf', '')}_转换.md`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    window.URL.revokeObjectURL(url)
+                }
+            } catch (error) {
+                showError(`下载失败: ${error.message}`)
             }
         }
 
         const downloadImages = async () => {
-            if (!taskId.value) return
-
             try {
                 const response = await fetch(`/api/download-images/${taskId.value}`)
-                const blob = await response.blob()
-
-                const url = window.URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = uploadedFile.value?.name?.replace('.pdf', '_images.zip') || 'images.zip'
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                window.URL.revokeObjectURL(url)
-            } catch (err) {
-                showError('下载图片压缩包失败: ' + err.message)
+                if (response.ok) {
+                    const blob = await response.blob()
+                    const url = window.URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${uploadedFile.value.name.replace('.pdf', '')}_图片.zip`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    window.URL.revokeObjectURL(url)
+                }
+            } catch (error) {
+                showError(`下载图片失败: ${error.message}`)
             }
         }
 
         const startNewConversion = () => {
-            // 重置状态
-            // currentStep.value = 1  // 删除步骤控制
-            uploadedFile.value = null
-            taskId.value = null
+            showResult.value = false
+            textPreview.value = ''
             progress.value = 0
             startTime.value = null
             finalTime.value = null
-            error.value = ''
             processingTime.value = 0
-            imageCount.value = 0
             hasImages.value = false
-            textPreview.value = ''
-            isConverting.value = false
-            showResult.value = false
-
-            // 重置配置
-            config.output_format = 'markdown'
-            // config.use_llm = false  // 注释掉
-            config.force_ocr = false
-            config.strip_existing_ocr = true
-            config.save_images = false
-            config.format_lines = false
-            config.disable_image_extraction = true
-            config.gpu_config.enabled = false
-            config.gpu_config.num_devices = 1
-            config.gpu_config.num_workers = 4
-            config.gpu_config.torch_device = "cpu"
-            config.gpu_config.cuda_visible_devices = ""
-
-            // 清理定时器
-            if (progressTimer) {
-                clearInterval(progressTimer)
-                progressTimer = null
-            }
-            if (timeUpdateTimer) {
-                clearInterval(timeUpdateTimer)
-                timeUpdateTimer = null
-            }
+            imageCount.value = 0
+            taskId.value = null
+            clearError()
         }
 
         const showError = (message) => {
             error.value = message
-            setTimeout(() => {
-                error.value = ''
-            }, 5000)
         }
 
         const clearError = () => {
             error.value = ''
         }
 
-        // 配置预设方法
-        const applySpeedPreset = () => {
-            config.force_ocr = false
-            config.strip_existing_ocr = true
-            config.save_images = false
-            config.format_lines = false
-            config.disable_image_extraction = true
-            showError('已应用速度优先配置')
-        }
-
-        const applyAccuracyPreset = () => {
-            config.force_ocr = true
-            config.strip_existing_ocr = false
-            config.save_images = true
-            config.format_lines = true
-            config.disable_image_extraction = false
-            showError('已应用准确性优先配置')
-        }
-
-        const applyCustomConfig = () => {
-            // 检查配置冲突
-            if (customConfig.disable_image_extraction && customConfig.save_images) {
-                showError('⚠️ 配置冲突：禁用图片提取时无法保存图片，已自动调整')
-                customConfig.save_images = false
-            }
-
-            // 应用自定义配置到主配置
-            config.force_ocr = customConfig.force_ocr
-            config.strip_existing_ocr = customConfig.strip_existing_ocr
-            config.save_images = customConfig.save_images
-            config.format_lines = customConfig.format_lines
-            config.disable_image_extraction = customConfig.disable_image_extraction
-            config.gpu_config.enabled = customConfig.gpu_enabled
-            config.gpu_config.num_devices = customConfig.num_devices
-            config.gpu_config.num_workers = customConfig.num_workers
-            config.gpu_config.torch_device = customConfig.torch_device
-            config.gpu_config.cuda_visible_devices = customConfig.cuda_visible_devices
-
-            // 关闭模态框
-            showCustomModal.value = false
-            showError('已应用自定义配置')
-        }
-
-        const initCustomConfig = () => {
-            // 初始化自定义配置为当前配置的副本
-            customConfig.force_ocr = config.force_ocr
-            customConfig.strip_existing_ocr = config.strip_existing_ocr
-            customConfig.save_images = config.save_images
-            customConfig.format_lines = config.format_lines
-            customConfig.disable_image_extraction = config.disable_image_extraction
-            customConfig.gpu_enabled = config.gpu_config.enabled
-            customConfig.num_devices = config.gpu_config.num_devices
-            customConfig.num_workers = config.gpu_config.num_workers
-            customConfig.torch_device = config.gpu_config.torch_device
-            customConfig.cuda_visible_devices = config.gpu_config.cuda_visible_devices
-        }
-
-        const openCustomModal = () => {
-            initCustomConfig()
-            showCustomModal.value = true
-        }
-
-        const handleImageExtractionChange = () => {
-            // 当禁用图片提取时，自动禁用保存图片
-            if (customConfig.disable_image_extraction) {
-                customConfig.save_images = false
-            }
-        }
-
-        const handleMainImageExtractionChange = () => {
-            // 当禁用图片提取时，自动禁用保存图片
-            if (config.disable_image_extraction) {
-                config.save_images = false
-            }
-        }
-
         // 生命周期
-        onMounted(() => {
-            // 加载GPU状态
-            loadGPUStatus()
-
-            // 设置marked选项
-            marked.setOptions({
-                highlight: function (code, lang) {
-                    // 直接返回原始代码，不进行高亮
-                    return code;
-                }
-            })
+        onMounted(async () => {
+            await loadGPUStatus()
+            await initConfigManager()
         })
 
         return {
-            // currentStep,  // 注释掉步骤控制
+            // 响应式数据
             uploadedFile,
             isDragOver,
             taskId,
@@ -531,40 +462,52 @@ createApp({
             startTime,
             currentTime,
             finalTime,
-            elapsedTime,
             error,
             processingTime,
-            // imageCount,  // 注释掉图片计数
             textPreview,
             gpuStatus,
-            config,
-            renderedPreview,
             isConverting,
             showResult,
+            hasImages,
+            imageCount,
+            configManager,
+            selectedPreset,
+            configValidation,
+            configSummary,
+
+            // 配置
+            config,
+
+            // 计算属性
+            renderedPreview,
+            elapsedTime,
+
+            // 工具函数
             formatFileSize,
+
+            // 配置管理函数
+            selectPreset,
+            switchConversionMode,
+            validateCurrentConfig,
+            resetConfig,
+            getPresetIcon,
+
+            // 文件处理函数
             handleDragOver,
             handleDragLeave,
             handleDrop,
             handleFileSelect,
             removeFile,
-            uploadFile,
+
+            // 转换函数
             startConversion,
             downloadResult,
+            downloadImages,
             startNewConversion,
+
+            // 错误处理
             showError,
-            clearError,
-            applySpeedPreset,
-            applyAccuracyPreset,
-            applyCustomConfig,
-            initCustomConfig,
-            openCustomModal,
-            handleImageExtractionChange,
-            handleMainImageExtractionChange,
-            showCustomModal,
-            customConfig,
-            hasImages,
-            imageCount,
-            downloadImages
+            clearError
         }
     }
 }).mount('#app') 

@@ -865,3 +865,417 @@ body {
         text-align: center;
     }
 }
+
+/* 在现有样式基础上添加新配置系统的样式 */
+
+/* 配置预设选择器 */
+.preset-selector {
+    margin-bottom: 20px;
+}
+
+.preset-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.preset-tab {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #ffffff;
+}
+
+.preset-tab:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.preset-tab.active {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.preset-icon {
+    font-size: 24px;
+    margin-right: 12px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+}
+
+.preset-content {
+    flex: 1;
+}
+
+.preset-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.preset-description {
+    font-size: 12px;
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
+/* 配置验证状态 */
+.config-validation {
+    margin: 20px 0;
+    padding: 16px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.validation-status {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.validation-status.valid {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: -16px -16px 16px -16px;
+}
+
+.validation-status.invalid {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: -16px -16px 16px -16px;
+}
+
+.status-icon {
+    font-size: 20px;
+    margin-right: 12px;
+}
+
+.status-content {
+    flex: 1;
+}
+
+.status-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.status-summary {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+.config-suggestions,
+.config-warnings {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.config-suggestions {
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+}
+
+.config-warnings {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+}
+
+.config-suggestions h5,
+.config-warnings h5 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.config-suggestions ul,
+.config-warnings ul {
+    margin: 0;
+    padding-left: 16px;
+}
+
+.config-suggestions li,
+.config-warnings li {
+    font-size: 12px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+/* 高级配置选项 */
+.advanced-config {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.config-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.config-row:last-child {
+    margin-bottom: 0;
+}
+
+.config-row label {
+    flex: 1;
+    font-weight: 500;
+    color: #374151;
+    margin-right: 12px;
+}
+
+.config-row small {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+    display: block;
+}
+
+.config-row .form-control {
+    width: 120px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.config-row select.form-control {
+    background: white;
+}
+
+/* GPU配置 */
+.gpu-config {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 12px;
+}
+
+.gpu-config .config-row {
+    background: white;
+    margin-bottom: 12px;
+}
+
+.gpu-config .config-row:last-child {
+    margin-bottom: 0;
+}
+
+/* 语言选择器 */
+.language-selector {
+    display: flex;
+    gap: 16px;
+}
+
+.language-selector .checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* 操作按钮 */
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.action-buttons .btn {
+    flex: 1;
+    padding: 12px 24px;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.action-buttons .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    border: none;
+}
+
+.action-buttons .btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.action-buttons .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.action-buttons .btn-secondary:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
+}
+
+.action-buttons .btn-outline {
+    background: transparent;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+}
+
+.action-buttons .btn-outline:hover {
+    background: #f9fafb;
+    color: #374151;
+}
+
+/* 复选框样式 */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.checkbox-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.checkmark {
+    height: 18px;
+    width: 18px;
+    background-color: #ffffff;
+    border: 2px solid #d1d5db;
+    border-radius: 4px;
+    margin-right: 8px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.checkbox-label:hover input~.checkmark {
+    border-color: #3b82f6;
+}
+
+.checkbox-label input:checked~.checkmark {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+.checkbox-label input:checked~.checkmark:after {
+    display: block;
+}
+
+.checkbox-label .checkmark:after {
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .preset-tabs {
+        grid-template-columns: 1fr;
+    }
+
+    .config-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .config-row label {
+        margin-right: 0;
+        margin-bottom: 8px;
+    }
+
+    .config-row .form-control {
+        width: 100%;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .language-selector {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+/* 动画效果 */
+.preset-tab,
+.config-row,
+.action-buttons .btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.preset-tab:hover,
+.config-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 加载状态 */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
