@@ -25,7 +25,7 @@ createApp({
         const configValidation = ref(null)
         const configSummary = ref('')
 
-        // 转换配置 - 使用V2格式
+        // 转换配置
         const config = reactive({
             conversion_mode: 'marker',
             output_format: 'markdown',
@@ -311,7 +311,7 @@ createApp({
                 startTime.value = Date.now()
                 clearError()
 
-                const response = await fetch('/api/v2/convert-v2', {
+                const response = await fetch('/api/convert', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

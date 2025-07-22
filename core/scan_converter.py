@@ -10,7 +10,6 @@ from typing import Dict, Any, Optional, Union
 from scan_pdf_ocr.scan_pdf_ocr import extract_scan_pdf
 from utils.progress import progress_manager, ProgressCallback
 from utils.file_handler import FileHandler
-from utils.config_adapter import ConfigAdapter
 
 
 class ScanPDFConverter:
@@ -167,20 +166,11 @@ async def scan_convert_pdf_task(
     Returns:
         转换结果
     """
-    # 使用配置适配器处理配置
+    # 处理配置
     try:
-        # 检测配置版本并适配
-        if ConfigAdapter.validate_config(config):
-            # 新配置格式，直接使用
-            converter = ScanPDFConverter(config=config)
-        else:
-            # 旧配置格式，需要适配
-            print("⚠️ 检测到旧OCR配置格式，正在适配...")
-            converter = ScanPDFConverter(config=config)
-
-        # 记录配置摘要
-        config_summary = ConfigAdapter.get_config_summary(converter)
-        print(f"🔧 OCR转换配置: {config_summary}")
+        # 直接使用配置
+        converter = ScanPDFConverter(config=config)
+        print(f"🔧 OCR转换配置: {config.get('conversion_mode', 'ocr')}模式")
 
     except Exception as e:
         print(f"❌ OCR配置处理失败: {str(e)}")

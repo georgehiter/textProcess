@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from api.routes import router
-from api.routes_v2 import router as router_v2
 from core.config import settings
 
 # 创建FastAPI应用
@@ -30,7 +29,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 注册API路由
 app.include_router(router, prefix="/api", tags=["API"])
-app.include_router(router_v2, prefix="/api/v2", tags=["API V2"])
 
 
 @app.get("/")

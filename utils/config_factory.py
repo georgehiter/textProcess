@@ -1,5 +1,5 @@
 from typing import Union, Dict, Any
-from api.new_models import MarkerConfig, OCRConfig, MarkerGPUConfig
+from api.models import MarkerConfig, OCRConfig, MarkerGPUConfig
 
 
 class ConfigFactory:
@@ -65,7 +65,7 @@ class ConfigFactory:
     @staticmethod
     def get_preset_configs():
         """获取所有预设配置"""
-        from api.new_models import ConfigPreset
+        from api.models import ConfigPreset
 
         presets = []
         preset_configs = ConfigPresets.get_preset_configs()

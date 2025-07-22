@@ -10,7 +10,7 @@ from marker.config.parser import ConfigParser
 from marker.output import text_from_rendered
 from utils.progress import progress_manager, ProgressCallback
 from utils.file_handler import FileHandler
-from utils.config_adapter import ConfigAdapter
+
 from core.config import settings
 
 
@@ -56,8 +56,8 @@ class MarkerPDFConverter:
     def _apply_gpu_config(self):
         """应用GPU配置"""
         if self.gpu_config and self.gpu_config.get("enabled", False):
-            # 使用新的GPU配置
-            ConfigAdapter.apply_gpu_config(self.gpu_config)
+            # 应用GPU配置
+            settings.apply_gpu_environment()
         else:
             # 使用默认GPU配置
             settings.apply_gpu_environment()

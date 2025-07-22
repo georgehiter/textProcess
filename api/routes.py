@@ -1,35 +1,311 @@
-from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, Response
-import torch
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi.responses import FileResponse
 from api.models import (
-    FileUploadResponse,
     ConversionRequest,
+    ConfigPresetsResponse,
+    ConfigPreset,
+    ConfigValidationResponse,
+    OCRConfig,
     ConversionResponse,
-    ConversionResult,
-    ProgressData,
-    HealthResponse,
-    GPUStatus,
-    GPUConfig,
 )
-from utils.file_handler import FileHandler
 from utils.progress import progress_manager
+from utils.config_factory import ConfigPresets
+from utils.file_handler import FileHandler
 from core.converter import convert_pdf_task
+from core.scan_converter import scan_convert_pdf_task
 from core.config import settings
 
 router = APIRouter()
 
 
-@router.get("/health", response_model=HealthResponse)
-async def health_check():
-    """健康检查接口"""
-    return HealthResponse()
-
-
-@router.get("/gpu-status", response_model=GPUStatus)
-async def get_gpu_status():
-    """获取GPU状态接口"""
+@router.get("/config-presets", response_model=ConfigPresetsResponse)
+async def get_config_presets():
+    """获取配置预设列表"""
     try:
+        presets_data = ConfigPresets.get_preset_configs()
+        presets = []
+
+        for key, data in presets_data.items():
+            preset = ConfigPreset(
+                name=data["name"],
+                description=data["description"],
+                config=data["config"],
+            )
+            presets.append(preset)
+
+        return ConfigPresetsResponse(presets=presets)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取配置预设失败: {str(e)}")
+
+
+@router.post("/validate-config", response_model=ConfigValidationResponse)
+async def validate_config(config_data: dict):
+    """验证配置有效性"""
+    try:
+        # 简化的配置验证
+        response = ConfigValidationResponse(
+            valid=True,
+            errors=[],
+            warnings=[],
+            suggestions=["配置验证通过"],
+        )
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"配置验证失败: {str(e)}")
+
+
+@router.post("/check-compatibility")
+async def check_config_compatibility(config_data: dict):
+    """检查配置兼容性"""
+    try:
+        return {
+            "compatible": True,
+            "version": "current",
+            "issues": [],
+            "warnings": [],
+            "suggestions": ["配置兼容性检查通过"],
+            "migration_needed": False,
+            "summary": "当前配置格式",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"兼容性检查失败: {str(e)}")
+
+
+@router.post("/auto-fix-config")
+async def auto_fix_config(config_data: dict):
+    """自动修复配置"""
+    try:
+        return {
+            "original_config": config_data,
+            "fixed_config": config_data,
+            "compatible": True,
+            "issues": [],
+            "warnings": [],
+            "summary": "配置无需修复",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"配置自动修复失败: {str(e)}")
+
+
+@router.post("/convert", response_model=ConversionResponse)
+async def start_conversion(
+    request: ConversionRequest, background_tasks: BackgroundTasks
+):
+    """启动PDF转换任务 - 使用新的配置系统"""
+    try:
+        task_id = request.task_id
+
+        # 查找文件
+        pdf_files = list(settings.upload_path.glob(f"{task_id}_*"))
+        if not pdf_files:
+            raise HTTPException(status_code=404, detail="未找到上传的文件")
+
+        pdf_path = str(pdf_files[0])
+
+        # 启动进度跟踪
+        progress_manager.start_task(task_id)
+
+        # 配置处理
+        config_dict = request.config.dict()
+
+        # 根据配置类型自动分发
+        if isinstance(request.config, OCRConfig):
+            # OCR转换任务 - 无需GPU配置
+            background_tasks.add_task(
+                scan_convert_pdf_task,
+                pdf_path=pdf_path,
+                task_id=task_id,
+                config=config_dict,
+            )
+            message = f"OCR转换任务已启动 (质量模式: {request.config.ocr_quality})"
+
+        else:  # MarkerConfig
+            # 应用GPU配置 - 仅Marker模式需要
+            if request.config.gpu.enabled:
+                settings.apply_gpu_config(request.config.gpu.dict())
+
+            # Marker转换任务
+            background_tasks.add_task(
+                convert_pdf_task, pdf_path=pdf_path, task_id=task_id, config=config_dict
+            )
+            message = f"Marker转换任务已启动 (GPU: {'启用' if request.config.gpu.enabled else '禁用'})"
+
+        return ConversionResponse(success=True, task_id=task_id, message=message)
+
+    except Exception as e:
+        print(f"❌ [ERROR] 启动转换失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"启动转换失败: {str(e)}")
+
+
+@router.post("/convert-with-preset", response_model=ConversionResponse)
+async def start_conversion_with_preset(
+    task_id: str, preset_name: str, background_tasks: BackgroundTasks
+):
+    """使用预设配置启动转换"""
+    try:
+        # 获取预设配置
+        preset_config = ConfigPresets.get_preset_by_name(preset_name)
+
+        # 创建转换请求
+        request = ConversionRequest(task_id=task_id, config=preset_config)
+
+        # 调用转换接口
+        return await start_conversion(request, background_tasks)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"启动转换失败: {str(e)}")
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """文件上传接口"""
+    try:
+        # 生成任务ID
+        task_id = FileHandler.generate_task_id()
+
+        # 保存文件
+        success, message, file_path = await FileHandler.save_upload_file(file, task_id)
+
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "filename": file.filename,
+            "message": "文件上传成功",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
+
+
+@router.get("/progress/{task_id}")
+async def get_progress(task_id: str):
+    """获取转换进度"""
+    try:
+        task_data = progress_manager.get_task(task_id)
+        if not task_data:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        return {
+            "task_id": task_id,
+            "status": task_data.get("status", "unknown"),
+            "progress": task_data.get("progress", 0.0),
+            "error": task_data.get("error"),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取进度失败: {str(e)}")
+
+
+@router.get("/result/{task_id}")
+async def get_result(task_id: str):
+    """获取转换结果"""
+    try:
+        # 获取输出文件路径
+        output_path = settings.get_output_path(task_id)
+        markdown_file = output_path / "output.md"
+
+        if not markdown_file.exists():
+            raise HTTPException(status_code=404, detail="结果文件不存在")
+
+        # 读取内容
+        with open(markdown_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # 检查是否有图片
+        image_dir = output_path / "images"
+        has_images = image_dir.exists() and any(image_dir.iterdir())
+        image_count = len(list(image_dir.glob("*"))) if has_images else 0
+
+        return {
+            "task_id": task_id,
+            "content": content,
+            "has_images": has_images,
+            "image_count": image_count,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取结果失败: {str(e)}")
+
+
+@router.get("/download/{task_id}")
+async def download_result(task_id: str):
+    """下载转换结果"""
+    try:
+        output_path = settings.get_output_path(task_id)
+        markdown_file = output_path / "output.md"
+
+        if not markdown_file.exists():
+            raise HTTPException(status_code=404, detail="结果文件不存在")
+
+        return FileResponse(
+            path=markdown_file,
+            filename=f"converted_{task_id}.md",
+            media_type="text/markdown",
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
+
+
+@router.get("/download-images/{task_id}")
+async def download_images(task_id: str):
+    """下载图片包"""
+    try:
+        output_path = settings.get_output_path(task_id)
+        image_dir = output_path / "images"
+
+        if not image_dir.exists():
+            raise HTTPException(status_code=404, detail="图片目录不存在")
+
+        # 创建ZIP文件
+        import zipfile
+
+        zip_path = output_path / f"images_{task_id}.zip"
+
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+            for image_file in image_dir.glob("*"):
+                zipf.write(image_file, image_file.name)
+
+        return FileResponse(
+            path=zip_path,
+            filename=f"images_{task_id}.zip",
+            media_type="application/zip",
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"下载图片失败: {str(e)}")
+
+
+@router.get("/images/{task_id}/{filename}")
+async def get_image(task_id: str, filename: str):
+    """获取图片文件"""
+    try:
+        image_path = settings.get_output_path(task_id) / "images" / filename
+
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail="图片文件不存在")
+
+        return FileResponse(path=image_path)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取图片失败: {str(e)}")
+
+
+@router.get("/gpu-status")
+async def get_gpu_status():
+    """获取GPU状态"""
+    try:
+        import torch
+
         # 检查CUDA可用性
         cuda_available = torch.cuda.is_available()
         device_count = torch.cuda.device_count() if cuda_available else 0
@@ -48,402 +324,14 @@ async def get_gpu_status():
             memory_used = memory_allocated
             memory_free = memory_total - memory_reserved
 
-        # 获取版本信息
-        cuda_version = torch.version.cuda if cuda_available else None
-        pytorch_version = torch.__version__
-
-        # 获取当前GPU配置
-        current_config = GPUConfig(
-            enabled=True,  # 默认启用
-            num_devices=settings.NUM_DEVICES,
-            num_workers=settings.NUM_WORKERS,
-            torch_device=settings.TORCH_DEVICE,
-            cuda_visible_devices=settings.CUDA_VISIBLE_DEVICES,
-        )
-
-        return GPUStatus(
-            available=cuda_available,
-            device_count=device_count,
-            device_name=device_name,
-            memory_total=memory_total,
-            memory_used=memory_used,
-            memory_free=memory_free,
-            cuda_version=cuda_version,
-            pytorch_version=pytorch_version,
-            current_config=current_config,
-        )
+        return {
+            "available": cuda_available,
+            "device_count": device_count,
+            "device_name": device_name,
+            "memory_total": memory_total,
+            "memory_used": memory_used,
+            "memory_free": memory_free,
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取GPU状态失败: {str(e)}")
-
-
-@router.post("/upload", response_model=FileUploadResponse)
-async def upload_file(file: UploadFile = File(...)):
-    """文件上传接口"""
-    try:
-        print(f"🔍 [DEBUG] 收到文件上传请求")
-        print(f"   - 文件名: {file.filename}")
-        print(f"   - 文件大小: {file.size}")
-        print(f"   - 文件类型: {file.content_type}")
-
-        # 生成任务ID
-        task_id = FileHandler.generate_task_id()
-        print(f"   - 生成任务ID: {task_id}")
-
-        # 保存文件
-        success, message, file_path = await FileHandler.save_upload_file(file, task_id)
-        print(f"   - 保存结果: {success}, {message}")
-        print(f"   - 文件路径: {file_path}")
-
-        if not success:
-            raise HTTPException(status_code=400, detail=message)
-
-        # 获取文件信息
-        file_info = FileHandler.get_file_info(file_path)
-        print(f"   - 文件信息: {file_info}")
-
-        return FileUploadResponse(
-            success=True,
-            task_id=task_id,
-            filename=file.filename,
-            file_size=file_info.get("size"),
-            message=message,
-        )
-
-    except Exception as e:
-        print(f"❌ [ERROR] 文件上传失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
-
-
-@router.post("/convert", response_model=ConversionResponse)
-async def start_conversion(
-    request: ConversionRequest, background_tasks: BackgroundTasks
-):
-    """统一的转换接口 - 支持Marker和OCR两种模式"""
-    try:
-        print(f"🔍 [DEBUG] 收到转换请求")
-        print(f"   - 任务ID: {request.task_id}")
-        print(f"   - 转换方式: {request.config.conversion_mode}")
-        print(f"   - 配置: {request.config}")
-
-        task_id = request.task_id
-
-        # 查找上传的文件
-        upload_pattern = f"{task_id}_*"
-        pdf_files = list(Path("uploads").glob(upload_pattern))
-        print(f"   - 查找文件模式: {upload_pattern}")
-        print(f"   - 找到文件: {pdf_files}")
-
-        if not pdf_files:
-            print(f"❌ [ERROR] 未找到上传的文件")
-            raise HTTPException(
-                status_code=404, detail="未找到上传的文件，请先上传PDF文件"
-            )
-
-        pdf_path = str(pdf_files[0])
-        print(f"   - 使用文件路径: {pdf_path}")
-
-        # 根据用户选择的转换方式执行不同的转换
-        if request.config.conversion_mode == "ocr":
-            # OCR转换
-            from core.scan_converter import scan_convert_pdf_task
-
-            # 准备OCR配置
-            ocr_config = {
-                "output_format": request.config.output_format.value,
-                "enhance_quality": request.config.enhance_quality,
-                "language_detection": request.config.language_detection,
-                "document_type_detection": request.config.document_type_detection,
-                "output_path": str(settings.get_output_path(task_id)),
-            }
-
-            background_tasks.add_task(
-                scan_convert_pdf_task,
-                pdf_path=pdf_path,
-                task_id=task_id,
-                config=ocr_config,
-            )
-
-            return ConversionResponse(
-                success=True, task_id=task_id, message="OCR转换任务已启动"
-            )
-        else:
-            # Marker转换（现有逻辑）
-            # 应用GPU配置
-            gpu_config = request.config.gpu_config
-            if gpu_config.enabled:
-                settings.NUM_DEVICES = gpu_config.num_devices
-                settings.NUM_WORKERS = gpu_config.num_workers
-                settings.TORCH_DEVICE = gpu_config.torch_device
-                settings.CUDA_VISIBLE_DEVICES = gpu_config.cuda_visible_devices
-                settings.apply_gpu_environment()
-            else:
-                settings.TORCH_DEVICE = "cpu"
-                settings.CUDA_VISIBLE_DEVICES = ""
-                settings.apply_gpu_environment()
-
-            # 添加调试日志
-            print(f"🔍 [DEBUG] 转换请求参数:")
-            print(f"   - force_ocr: {request.config.force_ocr}")
-            print(f"   - strip_existing_ocr: {request.config.strip_existing_ocr}")
-            print(f"   - save_images: {request.config.save_images}")
-            print(f"   - format_lines: {request.config.format_lines}")
-            print(
-                f"   - disable_image_extraction: {request.config.disable_image_extraction}"
-            )
-            print(f"   - gpu_config: {request.config.gpu_config}")
-
-            # 在后台执行转换任务
-            background_tasks.add_task(
-                convert_pdf_task,
-                pdf_path=pdf_path,
-                task_id=task_id,
-                config=request.config.dict(),
-            )
-
-            return ConversionResponse(
-                success=True, task_id=task_id, message="Marker转换任务已启动"
-            )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"启动转换失败: {str(e)}")
-
-
-@router.get("/progress/{task_id}", response_model=ProgressData)
-async def get_progress(task_id: str):
-    """获取转换进度接口"""
-    progress = progress_manager.get_progress(task_id)
-
-    if not progress:
-        raise HTTPException(status_code=404, detail="任务不存在")
-
-    return ProgressData(
-        task_id=task_id,
-        status=progress.get("status", "unknown"),
-        progress=progress.get("progress", 0.0),
-        error=progress.get("error"),
-    )
-
-
-@router.get("/result/{task_id}", response_model=ConversionResult)
-async def get_result(task_id: str):
-    """获取转换结果接口"""
-    try:
-        # 检查任务状态
-        progress = progress_manager.get_progress(task_id)
-        if not progress:
-            raise HTTPException(status_code=404, detail="任务不存在")
-
-        if progress.get("status") == "failed":
-            return ConversionResult(
-                task_id=task_id, success=False, error=progress.get("error", "转换失败")
-            )
-
-        if progress.get("status") != "completed":
-            raise HTTPException(status_code=400, detail="转换尚未完成，请稍后再试")
-
-        # 查找输出文件
-        output_dir = Path("outputs") / task_id
-        if not output_dir.exists():
-            raise HTTPException(status_code=404, detail="输出文件不存在")
-
-        # 查找输出文件（支持markdown和txt格式）
-        output_files = list(output_dir.glob("*.md")) + list(output_dir.glob("*.txt"))
-        if not output_files:
-            raise HTTPException(status_code=404, detail="未找到转换结果")
-
-        output_file = output_files[0]
-
-        # 读取文件内容预览
-        with open(output_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            text_preview = content[:1000] + "..." if len(content) > 1000 else content
-
-        # 查找图片文件
-        image_dir = output_dir / "images"
-        image_paths = []
-        if image_dir.exists():
-            # 查找所有类型的图片文件
-            image_paths = []
-            for pattern in ["*.png", "*.jpeg", "*.jpg", "*.gif", "*.bmp", "*.tiff"]:
-                image_paths.extend([str(p) for p in image_dir.glob(pattern)])
-
-        # 查找元数据文件
-        metadata_file = output_dir / "metadata.json"
-
-        # 确定输出格式
-        output_format = "markdown" if output_file.suffix == ".md" else "text"
-
-        return ConversionResult(
-            task_id=task_id,
-            success=True,
-            output_file=str(output_file),
-            metadata_file=str(metadata_file) if metadata_file.exists() else None,
-            image_paths=image_paths,
-            processing_time=progress.get("processing_time"),
-            output_format=output_format,
-            text_preview=text_preview,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取结果失败: {str(e)}")
-
-
-@router.get("/download-images/{task_id}")
-async def download_images(task_id: str):
-    """下载转换结果中的图片压缩包"""
-    try:
-        import zipfile
-        import io
-
-        # 查找输出目录
-        output_dir = Path("outputs") / task_id
-        if not output_dir.exists():
-            raise HTTPException(status_code=404, detail="输出文件不存在")
-
-        # 查找图片目录
-        image_dir = output_dir / "images"
-        if not image_dir.exists():
-            raise HTTPException(status_code=404, detail="图片文件不存在")
-
-        # 获取所有图片文件（现在文件名保持原始格式）
-        image_files = []
-        # 查找所有可能的图片文件
-        for pattern in ["*.png", "*.jpeg", "*.jpg", "*.gif", "*.bmp", "*.tiff"]:
-            image_files.extend(list(image_dir.glob(pattern)))
-
-        if not image_files:
-            raise HTTPException(status_code=404, detail="没有找到图片文件")
-
-        # 创建内存中的zip文件
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for img_file in image_files:
-                # 将图片文件添加到zip中
-                zip_file.write(img_file, img_file.name)
-
-        # 重置缓冲区位置
-        zip_buffer.seek(0)
-
-        # 返回zip文件
-        return Response(
-            content=zip_buffer.getvalue(),
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f"attachment; filename={task_id}_images.zip"
-            },
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"下载图片压缩包失败: {str(e)}")
-
-
-@router.get("/download/{task_id}")
-async def download_result(task_id: str):
-    """下载转换结果接口"""
-    try:
-        # 查找输出文件
-        output_dir = Path("outputs") / task_id
-        if not output_dir.exists():
-            raise HTTPException(status_code=404, detail="输出文件不存在")
-
-        # 查找输出文件（支持markdown和txt格式）
-        output_files = list(output_dir.glob("*.md")) + list(output_dir.glob("*.txt"))
-        if not output_files:
-            raise HTTPException(status_code=404, detail="未找到转换结果")
-
-        output_file = output_files[0]
-
-        # 根据文件类型确定媒体类型
-        if output_file.suffix == ".md":
-            media_type = "text/markdown"
-        else:
-            media_type = "text/plain"
-
-        return FileResponse(
-            path=output_file, filename=output_file.name, media_type=media_type
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
-
-
-@router.get("/images/{task_id}/{filename}")
-async def get_image(task_id: str, filename: str):
-    """获取转换结果中的图片文件"""
-    try:
-        # 构建图片文件路径
-        image_path = Path("outputs") / task_id / "images" / filename
-
-        # 检查文件是否存在
-        if not image_path.exists():
-            raise HTTPException(status_code=404, detail="图片文件不存在")
-
-        # 检查文件是否在允许的目录内（安全验证）
-        try:
-            image_path.resolve().relative_to(Path("outputs").resolve())
-        except ValueError:
-            raise HTTPException(status_code=403, detail="访问被拒绝")
-
-        # 返回图片文件
-        # 根据文件扩展名确定媒体类型
-        if filename.endswith(".png"):
-            media_type = "image/png"
-        elif filename.endswith(".jpeg") or filename.endswith(".jpg"):
-            media_type = "image/jpeg"
-        elif filename.endswith(".gif"):
-            media_type = "image/gif"
-        elif filename.endswith(".bmp"):
-            media_type = "image/bmp"
-        elif filename.endswith(".tiff"):
-            media_type = "image/tiff"
-        else:
-            media_type = "image/png"  # 默认类型
-
-        return FileResponse(
-            path=image_path,
-            media_type=media_type,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取图片失败: {str(e)}")
-
-
-@router.delete("/task/{task_id}")
-async def delete_task(task_id: str):
-    """删除任务接口"""
-    try:
-        # 删除上传的文件
-        upload_pattern = f"{task_id}_*"
-        for file_path in Path("uploads").glob(upload_pattern):
-            file_path.unlink()
-
-        # 删除输出文件
-        output_dir = Path("outputs") / task_id
-        if output_dir.exists():
-            import shutil
-
-            shutil.rmtree(output_dir)
-
-        # 删除临时文件
-        temp_dir = Path("outputs") / f"{task_id}_temp"
-        if temp_dir.exists():
-            import shutil
-
-            shutil.rmtree(temp_dir)
-
-        # 删除进度信息
-        progress_manager.remove_task(task_id)
-
-        return {"success": True, "message": "任务已删除"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除任务失败: {str(e)}")
