@@ -1,5 +1,5 @@
 from typing import Union, Literal, List
-from pydantic import BaseModel, Field, validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 
 
@@ -21,12 +21,13 @@ class MarkerGPUConfig(BaseModel):
     torch_device: str = Field(default="cuda", description="PyTorch设备")
     cuda_visible_devices: str = Field(default="0", description="可见GPU设备")
 
-    @validator("enabled")
-    def validate_gpu_enabled(cls, v, values):
+    @field_validator("enabled")
+    @classmethod
+    def validate_gpu_enabled(cls, v, info):
         """验证GPU配置"""
         if v:
             # 如果启用GPU，检查其他配置
-            if values.get("num_devices", 1) > 1:
+            if info.data.get("num_devices", 1) > 1:
                 print("⚠️ 多GPU配置可能需要更多内存")
         return v
 
@@ -94,7 +95,8 @@ class OCRConfig(BaseConversionConfig):
         default=["chi_sim", "eng"], description="目标识别语言列表"
     )
 
-    @validator("target_languages")
+    @field_validator("target_languages")
+    @classmethod
     def validate_languages(cls, v):
         """验证语言配置"""
         valid_languages = ["chi_sim", "eng", "jpn", "kor"]
@@ -112,7 +114,8 @@ class ConversionRequest(BaseModel):
         discriminator="conversion_mode", description="转换配置"
     )
 
-    @validator("task_id")
+    @field_validator("task_id")
+    @classmethod
     def validate_task_id(cls, v):
         """验证任务ID格式"""
         if not v or len(v) < 10:

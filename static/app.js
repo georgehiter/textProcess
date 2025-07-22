@@ -25,6 +25,14 @@ createApp({
         const configValidation = ref(null)
         const configSummary = ref('')
 
+        // 新增：模式选择相关数据
+        const selectedMode = ref(null)  // 'text' 或 'scan'
+        const textConfig = ref(null)    // 文本型PDF配置
+
+        // 新增：预览展开/折叠相关数据
+        const isPreviewExpanded = ref(false)
+        const showExpandButton = ref(false)
+
         // 转换配置
         const config = reactive({
             conversion_mode: 'marker',
@@ -72,7 +80,16 @@ createApp({
                 )
             }
 
-            return marked.parse(processedText)
+            const result = marked.parse(processedText)
+
+            // 内容变化后检查高度
+            nextTick(() => {
+                if (showResult.value) {
+                    setTimeout(checkPreviewHeight, 50)
+                }
+            })
+
+            return result
         })
 
         const elapsedTime = computed(() => {
@@ -88,6 +105,34 @@ createApp({
                 const seconds = elapsed % 60
                 return `${minutes}分${seconds.toFixed(0)}秒`
             }
+        })
+
+        // 新增：图片处理模式计算属性（处理互斥逻辑）
+        const imageProcessingMode = computed({
+            get() {
+                if (textConfig.value?.save_images) {
+                    return 'save'
+                } else if (textConfig.value?.disable_image_extraction) {
+                    return 'disable'
+                }
+                return 'disable' // 默认值
+            },
+            set(value) {
+                if (!textConfig.value) return
+
+                if (value === 'save') {
+                    textConfig.value.save_images = true
+                    textConfig.value.disable_image_extraction = false
+                } else {
+                    textConfig.value.save_images = false
+                    textConfig.value.disable_image_extraction = true
+                }
+            }
+        })
+
+        // 新增：预览高度计算属性
+        const previewHeight = computed(() => {
+            return isPreviewExpanded.value ? 'auto' : '300px'
         })
 
         // 工具函数
@@ -110,6 +155,47 @@ createApp({
             }
         }
 
+        // 新增：预览展开/折叠切换函数
+        const togglePreview = () => {
+            isPreviewExpanded.value = !isPreviewExpanded.value
+        }
+
+        // 新增：检查预览内容高度
+        const checkPreviewHeight = () => {
+            nextTick(() => {
+                const previewContainer = document.querySelector('.preview-container')
+                if (previewContainer) {
+                    const scrollHeight = previewContainer.scrollHeight
+                    const clientHeight = previewContainer.clientHeight
+                    showExpandButton.value = scrollHeight > clientHeight + 50 // 50px缓冲
+                }
+            })
+        }
+
+        // 新增：模式选择函数
+        const selectMode = async (mode) => {
+            selectedMode.value = mode
+            if (configManager.value) {
+                configManager.value.selectMode(mode)
+
+                if (mode === 'text') {
+                    // 确保文本配置包含所有必要的字段
+                    const defaultConfig = configManager.value.getDefaultTextConfig()
+                    textConfig.value = { ...defaultConfig }
+                    // 确保互斥配置正确
+                    textConfig.value.save_images = false
+                    textConfig.value.disable_image_extraction = true
+                }
+            }
+        }
+
+        // 新增：更新文本型PDF配置
+        const updateTextConfig = () => {
+            if (selectedMode.value === 'text' && textConfig.value && configManager.value) {
+                configManager.value.updateTextConfig(textConfig.value)
+            }
+        }
+
         // 配置管理函数
         const initConfigManager = async () => {
             try {
@@ -117,8 +203,6 @@ createApp({
                 const success = await configManager.value.init()
                 if (success) {
                     console.log('配置管理器初始化成功')
-                    // 应用默认预设
-                    await selectPreset('快速Marker转换')
                 }
             } catch (error) {
                 console.error('配置管理器初始化失败:', error)
@@ -157,9 +241,10 @@ createApp({
             try {
                 if (!configManager.value) return
 
-                const validation = await configManager.value.validateConfig(config)
+                const currentConfig = configManager.value.getCurrentConfig()
+                const validation = await configManager.value.validateConfig(currentConfig)
                 configValidation.value = validation
-                configSummary.value = configManager.value.getConfigSummary(config)
+                configSummary.value = configManager.value.getConfigSummary(currentConfig)
 
                 if (!validation.valid) {
                     showError(`配置验证失败: ${validation.errors.join(', ')}`)
@@ -294,7 +379,17 @@ createApp({
                 return
             }
 
+            if (!selectedMode.value) {
+                showError('请选择PDF类型')
+                return
+            }
+
             try {
+                // 更新文本型PDF配置
+                if (selectedMode.value === 'text') {
+                    updateTextConfig()
+                }
+
                 // 验证配置
                 await validateCurrentConfig()
                 if (configValidation.value && !configValidation.value.valid) {
@@ -311,22 +406,10 @@ createApp({
                 startTime.value = Date.now()
                 clearError()
 
-                const response = await fetch('/api/convert', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        task_id: taskId.value,
-                        config: config
-                    })
-                })
+                // 使用配置管理器启动转换
+                const currentConfig = configManager.value.getCurrentConfig()
+                const result = await configManager.value.startConversion(taskId.value)
 
-                if (!response.ok) {
-                    throw new Error(`转换失败: ${response.status}`)
-                }
-
-                const result = await response.json()
                 if (result.success) {
                     startProgressPolling()
                 } else {
@@ -378,6 +461,13 @@ createApp({
                     hasImages.value = data.has_images || false
                     imageCount.value = data.image_count || 0
                     showResult.value = true
+
+                    // 重置预览状态
+                    isPreviewExpanded.value = false
+                    showExpandButton.value = false
+
+                    // 检查预览内容高度
+                    setTimeout(checkPreviewHeight, 100)
                 }
             } catch (error) {
                 showError(`获取结果失败: ${error.message}`)
@@ -436,6 +526,8 @@ createApp({
             hasImages.value = false
             imageCount.value = 0
             taskId.value = null
+            isPreviewExpanded.value = false
+            showExpandButton.value = false
             clearError()
         }
 
@@ -475,15 +567,32 @@ createApp({
             configValidation,
             configSummary,
 
+            // 新增：模式选择相关数据
+            selectedMode,
+            textConfig,
+
+            // 新增：预览展开/折叠相关数据
+            isPreviewExpanded,
+            showExpandButton,
+            previewHeight,
+
             // 配置
             config,
 
             // 计算属性
             renderedPreview,
             elapsedTime,
+            imageProcessingMode,
 
             // 工具函数
             formatFileSize,
+
+            // 新增：模式选择函数
+            selectMode,
+            updateTextConfig,
+
+            // 新增：预览控制函数
+            togglePreview,
 
             // 配置管理函数
             selectPreset,

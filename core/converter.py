@@ -317,39 +317,24 @@ async def convert_pdf_task(
     pdf_path: str, task_id: str, config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    执行PDF转换任务 - 支持新旧配置格式
+    执行PDF转换任务 - 使用新配置格式
 
     Args:
         pdf_path: PDF文件路径
         task_id: 任务ID
-        config: 转换配置（支持新旧格式）
+        config: 转换配置（新格式）
 
     Returns:
         转换结果
     """
-    # 使用配置适配器处理配置
     try:
-        # 检测配置版本并适配
-        if ConfigAdapter.validate_config(config):
-            # 新配置格式，直接使用
-            converter = MarkerPDFConverter(config=config)
-        else:
-            # 旧配置格式，需要适配
-            print("⚠️ 检测到旧配置格式，正在适配...")
-            converter = MarkerPDFConverter(
-                output_format=config.get("output_format", "markdown"),
-                use_llm=config.get("use_llm", False),
-                force_ocr=config.get("force_ocr", False),
-                save_images=config.get("save_images", False),
-                format_lines=config.get("format_lines", False),
-                disable_image_extraction=config.get("disable_image_extraction", True),
-                strip_existing_ocr=config.get("strip_existing_ocr", True),
-                gpu_config=config.get("gpu_config", {}),
-            )
+        # 直接使用新配置格式
+        converter = MarkerPDFConverter(config=config)
 
-        # 记录配置摘要
-        config_summary = ConfigAdapter.get_config_summary(converter)
-        print(f"🔧 转换配置: {config_summary}")
+        # 简化的配置日志
+        output_format = config.get("output_format", "markdown")
+        gpu_enabled = config.get("gpu_config", {}).get("enabled", False)
+        print(f"🔧 转换配置: 格式={output_format}, GPU={gpu_enabled}")
 
     except Exception as e:
         print(f"❌ 配置处理失败: {str(e)}")

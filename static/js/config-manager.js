@@ -1,5 +1,5 @@
 /**
- * 配置管理器 - 处理新旧配置格式的转换和验证
+ * 配置管理器 - 处理配置格式的验证和管理
  */
 
 class ConfigManager {
@@ -7,6 +7,8 @@ class ConfigManager {
         this.apiBase = '/api'
         this.presets = null
         this.currentConfig = null
+        this.selectedMode = null  // 'text' 或 'scan'
+        this.textConfig = null   // 文本型PDF的配置
     }
 
     /**
@@ -37,6 +39,117 @@ class ConfigManager {
             return this.presets
         } catch (error) {
             console.error('加载配置预设失败:', error)
+            throw error
+        }
+    }
+
+    /**
+     * 选择转换模式
+     */
+    selectMode(mode) {
+        this.selectedMode = mode
+        if (mode === 'text') {
+            // 文本型PDF - 加载默认配置
+            this.loadTextConfig()
+        } else {
+            // 扫描型PDF - 使用固定配置
+            this.currentConfig = this.getDefaultScanConfig()
+        }
+    }
+
+    /**
+     * 加载文本型PDF配置
+     */
+    async loadTextConfig() {
+        try {
+            const preset = this.getPreset('text_pdf')
+            this.textConfig = preset.config
+            this.currentConfig = { ...this.textConfig }
+        } catch (error) {
+            console.error('加载文本型PDF配置失败:', error)
+            this.currentConfig = this.getDefaultTextConfig()
+        }
+    }
+
+    /**
+     * 获取默认文本型PDF配置
+     */
+    getDefaultTextConfig() {
+        return {
+            conversion_mode: 'marker',
+            output_format: 'markdown',
+            use_llm: false,
+            force_ocr: false,
+            strip_existing_ocr: true,
+            save_images: false,
+            format_lines: false,
+            disable_image_extraction: true,
+            gpu: { enabled: false, num_devices: 1, num_workers: 4 }
+        }
+    }
+
+    /**
+     * 获取默认扫描型PDF配置
+     */
+    getDefaultScanConfig() {
+        return {
+            conversion_mode: 'ocr',
+            output_format: 'markdown',
+            enhance_quality: true,
+            language_detection: true,
+            document_type_detection: true,
+            ocr_quality: 'balanced',
+            target_languages: ['chi_sim', 'eng']
+        }
+    }
+
+    /**
+     * 更新文本型PDF配置
+     */
+    updateTextConfig(newConfig) {
+        if (this.selectedMode === 'text') {
+            this.currentConfig = { ...this.textConfig, ...newConfig }
+        }
+    }
+
+    /**
+     * 获取当前配置
+     */
+    getCurrentConfig() {
+        return this.currentConfig
+    }
+
+    /**
+     * 启动转换
+     */
+    async startConversion(taskId) {
+        const config = this.getCurrentConfig()
+        return await this.convertWithConfig(taskId, config)
+    }
+
+    /**
+     * 使用配置进行转换
+     */
+    async convertWithConfig(taskId, config) {
+        try {
+            const response = await fetch(`${this.apiBase}/convert`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    task_id: taskId,
+                    config: config
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+            }
+
+            return await response.json()
+        } catch (error) {
+            console.error('转换失败:', error)
             throw error
         }
     }
@@ -130,7 +243,7 @@ class ConfigManager {
     }
 
     /**
-     * 检测配置版本
+     * 检测配置版本（已简化）
      */
     detectConfigVersion(config) {
         return 'current'  // 当前配置格式

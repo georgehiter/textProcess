@@ -1,6 +1,9 @@
 from typing import Union, Dict, Any
 from api.models import MarkerConfig, OCRConfig, MarkerGPUConfig
 
+# 类型别名
+ConfigType = Union[MarkerConfig, OCRConfig]
+
 
 class ConfigFactory:
     """配置工厂类"""
@@ -16,7 +19,7 @@ class ConfigFactory:
         return OCRConfig(**kwargs)
 
     @staticmethod
-    def create_default_config(conversion_mode: str) -> Union[MarkerConfig, OCRConfig]:
+    def create_default_config(conversion_mode: str) -> ConfigType:
         """创建默认配置"""
         if conversion_mode == "marker":
             return ConfigFactory.create_marker_config()
@@ -24,6 +27,32 @@ class ConfigFactory:
             return ConfigFactory.create_ocr_config()
         else:
             raise ValueError(f"不支持的转换模式: {conversion_mode}")
+
+    @staticmethod
+    def create_text_pdf_config() -> MarkerConfig:
+        """创建文本型PDF配置（可自定义）"""
+        return MarkerConfig(
+            output_format="markdown",
+            use_llm=False,
+            force_ocr=False,
+            strip_existing_ocr=True,
+            save_images=False,
+            format_lines=False,
+            disable_image_extraction=True,
+            gpu=MarkerGPUConfig(enabled=False),
+        )
+
+    @staticmethod
+    def create_scan_pdf_config() -> OCRConfig:
+        """创建扫描型PDF配置（固定参数）"""
+        return OCRConfig(
+            output_format="markdown",
+            enhance_quality=True,
+            language_detection=True,
+            document_type_detection=True,
+            ocr_quality="balanced",
+            target_languages=["chi_sim", "eng"],
+        )
 
     @staticmethod
     def create_fast_marker_config() -> MarkerConfig:
@@ -81,7 +110,7 @@ class ConfigFactory:
         return presets
 
     @staticmethod
-    def get_preset_by_name(name: str) -> Union[MarkerConfig, OCRConfig]:
+    def get_preset_by_name(name: str) -> ConfigType:
         """根据名称获取预设配置"""
         presets = ConfigPresets.get_preset_configs()
         for preset_data in presets.values():
@@ -97,30 +126,20 @@ class ConfigPresets:
     def get_preset_configs() -> Dict[str, Dict[str, Any]]:
         """获取所有预设配置"""
         return {
-            "fast_marker": {
-                "name": "快速Marker转换",
-                "description": "适用于文本版PDF的快速转换，禁用GPU和图片提取",
-                "config": ConfigFactory.create_fast_marker_config(),
+            "text_pdf": {
+                "name": "文本型PDF转换",
+                "description": "适用于包含可复制文本的PDF文档，支持自定义参数",
+                "config": ConfigFactory.create_text_pdf_config(),
             },
-            "gpu_marker": {
-                "name": "GPU加速Marker转换",
-                "description": "适用于文本版PDF的GPU加速转换",
-                "config": ConfigFactory.create_gpu_marker_config(),
-            },
-            "accurate_ocr": {
-                "name": "高精度OCR转换",
-                "description": "适用于扫描版PDF的高精度转换，启用所有优化",
-                "config": ConfigFactory.create_accurate_ocr_config(),
-            },
-            "fast_ocr": {
-                "name": "快速OCR转换",
-                "description": "适用于扫描版PDF的快速转换，禁用优化功能",
-                "config": ConfigFactory.create_fast_ocr_config(),
+            "scan_pdf": {
+                "name": "扫描型PDF转换",
+                "description": "适用于扫描版、图片版PDF文档，自动OCR识别",
+                "config": ConfigFactory.create_scan_pdf_config(),
             },
         }
 
     @staticmethod
-    def get_preset_by_name(name: str) -> Union[MarkerConfig, OCRConfig]:
+    def get_preset_by_name(name: str) -> ConfigType:
         """根据名称获取预设配置"""
         presets = ConfigPresets.get_preset_configs()
         if name not in presets:

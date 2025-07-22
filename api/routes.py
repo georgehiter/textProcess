@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.responses import FileResponse
+from pathlib import Path
+from typing import Optional
 from api.models import (
     ConversionRequest,
     ConfigPresetsResponse,
@@ -16,6 +18,56 @@ from core.scan_converter import scan_convert_pdf_task
 from core.config import settings
 
 router = APIRouter()
+
+
+def find_output_file(
+    output_path: Path, output_format: str = "markdown"
+) -> Optional[Path]:
+    """
+    动态查找输出文件
+
+    Args:
+        output_path: 输出目录路径
+        output_format: 输出格式
+
+    Returns:
+        找到的文件路径，如果未找到则返回None
+    """
+    if not output_path.exists():
+        return None
+
+    # 根据输出格式查找对应文件
+    if output_format in ["markdown", "md"]:
+        # 查找 .md 文件
+        md_files = list(output_path.glob("*.md"))
+        if md_files:
+            return md_files[0]  # 返回第一个找到的 .md 文件
+    elif output_format == "json":
+        # 查找 .json 文件
+        json_files = list(output_path.glob("*.json"))
+        if json_files:
+            return json_files[0]
+    elif output_format == "html":
+        # 查找 .html 文件
+        html_files = list(output_path.glob("*.html"))
+        if html_files:
+            return html_files[0]
+    elif output_format == "chunks":
+        # 查找 _chunks.json 文件
+        chunks_files = list(output_path.glob("*_chunks.json"))
+        if chunks_files:
+            return chunks_files[0]
+
+    # 如果没找到特定格式，尝试查找任何输出文件
+    all_files = []
+    all_files.extend(output_path.glob("*.md"))
+    all_files.extend(output_path.glob("*.json"))
+    all_files.extend(output_path.glob("*.html"))
+
+    if all_files:
+        return all_files[0]
+
+    return None
 
 
 @router.get("/config-presets", response_model=ConfigPresetsResponse)
@@ -190,7 +242,7 @@ async def upload_file(file: UploadFile = File(...)):
 async def get_progress(task_id: str):
     """获取转换进度"""
     try:
-        task_data = progress_manager.get_task(task_id)
+        task_data = progress_manager.get_progress(task_id)
         if not task_data:
             raise HTTPException(status_code=404, detail="任务不存在")
 
@@ -211,13 +263,15 @@ async def get_result(task_id: str):
     try:
         # 获取输出文件路径
         output_path = settings.get_output_path(task_id)
-        markdown_file = output_path / "output.md"
 
-        if not markdown_file.exists():
+        # 动态查找输出文件
+        output_file = find_output_file(output_path)
+
+        if not output_file or not output_file.exists():
             raise HTTPException(status_code=404, detail="结果文件不存在")
 
         # 读取内容
-        with open(markdown_file, "r", encoding="utf-8") as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         # 检查是否有图片
@@ -230,6 +284,8 @@ async def get_result(task_id: str):
             "content": content,
             "has_images": has_images,
             "image_count": image_count,
+            "file_name": output_file.name,
+            "file_format": output_file.suffix,
         }
 
     except Exception as e:
@@ -241,15 +297,25 @@ async def download_result(task_id: str):
     """下载转换结果"""
     try:
         output_path = settings.get_output_path(task_id)
-        markdown_file = output_path / "output.md"
 
-        if not markdown_file.exists():
+        # 动态查找输出文件
+        output_file = find_output_file(output_path)
+
+        if not output_file or not output_file.exists():
             raise HTTPException(status_code=404, detail="结果文件不存在")
 
+        # 根据文件类型设置MIME类型
+        mime_types = {
+            ".md": "text/markdown",
+            ".json": "application/json",
+            ".html": "text/html",
+        }
+        media_type = mime_types.get(output_file.suffix, "text/plain")
+
         return FileResponse(
-            path=markdown_file,
-            filename=f"converted_{task_id}.md",
-            media_type="text/markdown",
+            path=output_file,
+            filename=f"converted_{task_id}{output_file.suffix}",
+            media_type=media_type,
         )
 
     except Exception as e:

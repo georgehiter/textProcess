@@ -156,19 +156,19 @@ async def scan_convert_pdf_task(
     pdf_path: str, task_id: str, config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    执行OCR转换任务 - 支持新旧配置格式
+    执行OCR转换任务 - 使用新配置格式
 
     Args:
         pdf_path: PDF文件路径
         task_id: 任务ID
-        config: 转换配置（支持新旧格式）
+        config: 转换配置（新格式）
 
     Returns:
         转换结果
     """
     # 处理配置
     try:
-        # 直接使用配置
+        # 直接使用新配置格式
         converter = ScanPDFConverter(config=config)
         print(f"🔧 OCR转换配置: {config.get('conversion_mode', 'ocr')}模式")
 
