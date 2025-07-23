@@ -3,7 +3,7 @@ import json
 import time
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.config.parser import ConfigParser
@@ -11,41 +11,26 @@ from marker.output import text_from_rendered
 from utils.progress import progress_manager, ProgressCallback
 from utils.file_handler import FileHandler
 
-from core.config import settings
-
 
 class MarkerPDFConverter:
     """Marker PDF 转换器封装类"""
 
-    def __init__(self, config: Union[Dict[str, Any], str] = "markdown", **kwargs):
+    def __init__(self, config: Dict[str, Any]):
         """
-        初始化转换器 - 支持新旧两种配置方式
+        初始化转换器
 
         Args:
-            config: 配置字典或输出格式字符串
-            **kwargs: 兼容旧版本的参数
+            config: 配置字典
         """
         # 处理配置参数
-        if isinstance(config, dict):
-            # 新配置格式
-            self.output_format = config.get("output_format", "markdown")
-            self.use_llm = config.get("use_llm", False)
-            self.force_ocr = config.get("force_ocr", False)
-            self.save_images = config.get("save_images", False)
-            self.format_lines = config.get("format_lines", False)
-            self.disable_image_extraction = config.get("disable_image_extraction", True)
-            self.strip_existing_ocr = config.get("strip_existing_ocr", True)
-            self.gpu_config = config.get("gpu_config", {})
-        else:
-            # 旧配置格式 - 兼容性支持
-            self.output_format = config
-            self.use_llm = kwargs.get("use_llm", False)
-            self.force_ocr = kwargs.get("force_ocr", False)
-            self.save_images = kwargs.get("save_images", False)
-            self.format_lines = kwargs.get("format_lines", False)
-            self.disable_image_extraction = kwargs.get("disable_image_extraction", True)
-            self.strip_existing_ocr = kwargs.get("strip_existing_ocr", True)
-            self.gpu_config = kwargs.get("gpu_config", {})
+        self.output_format = config.get("output_format", "markdown")
+        self.use_llm = config.get("use_llm", False)
+        self.force_ocr = config.get("force_ocr", False)
+        self.save_images = config.get("save_images", False)
+        self.format_lines = config.get("format_lines", False)
+        self.disable_image_extraction = config.get("disable_image_extraction", True)
+        self.strip_existing_ocr = config.get("strip_existing_ocr", True)
+        self.gpu_config = config.get("gpu_config", {})
 
         self.converter = None
 
@@ -55,12 +40,18 @@ class MarkerPDFConverter:
 
     def _apply_gpu_config(self):
         """应用GPU配置"""
-        if self.gpu_config and self.gpu_config.get("enabled", False):
-            # 应用GPU配置
-            settings.apply_gpu_environment()
-        else:
-            # 使用默认GPU配置
-            settings.apply_gpu_environment()
+        if not self.gpu_config.get("enabled", False):
+            return
+
+        gpu_config = self.gpu_config
+        os.environ.update(
+            {
+                "NUM_DEVICES": str(gpu_config.get("num_devices", 1)),
+                "NUM_WORKERS": str(gpu_config.get("num_workers", 4)),
+                "TORCH_DEVICE": gpu_config.get("torch_device", "cuda"),
+                "CUDA_VISIBLE_DEVICES": gpu_config.get("cuda_visible_devices", "0"),
+            }
+        )
 
     def _setup_converter(self):
         """设置转换器配置"""
@@ -117,19 +108,11 @@ class MarkerPDFConverter:
         progress_callback = ProgressCallback(task_id, progress_manager)
 
         try:
-            # 阶段1: 初始化转换器
-            progress_callback(5)
-            await asyncio.sleep(0.1)  # 让出控制权
-
-            # 阶段2: 加载PDF文档
-            progress_callback(10)
-            await asyncio.sleep(0.1)
-
-            # 阶段3: 执行转换（这是最耗时的部分）
+            # 阶段1: 开始转换
             progress_callback(20)
             rendered = await asyncio.to_thread(self.converter, pdf_path)
 
-            # 阶段4: 提取结果
+            # 阶段2: 转换完成，提取结果
             progress_callback(60)
 
             if self.output_format == "markdown":
@@ -140,42 +123,37 @@ class MarkerPDFConverter:
                 metadata = getattr(rendered, "metadata", {})
                 images = getattr(rendered, "images", {})
 
-            # 阶段5: 设置输出目录
-            progress_callback(70)
+            # 阶段3: 设置输出目录
             if output_dir is None:
-                output_dir = FileHandler.ensure_output_directory(task_id)
+                file_handler = FileHandler()
+                output_dir = file_handler.ensure_output_directory(task_id)
             else:
                 output_dir = Path(output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-            # 阶段6: 保存主要内容
-            progress_callback(80)
+            # 阶段4: 保存文件
+            progress_callback(90)
             output_file = self._save_content(content, output_dir, Path(pdf_path).stem)
 
-            # 阶段7: 保存图片
-            progress_callback(90)
             image_paths = []
             if self.save_images and images:
                 image_paths = self._save_images(images, output_dir)
 
-            # 阶段8: 保存元数据
-            progress_callback(95)
             metadata_file = self._save_metadata(metadata, output_dir)
 
             end_time = time.time()
             processing_time = end_time - start_time
 
-            # 阶段9: 完成任务
+            # 阶段5: 完成任务
             progress_callback(100)
             progress_manager.complete_task(task_id, "转换完成")
 
             # 输出统计信息
             if self.output_format == "markdown" and text:
                 char_count = len(text)
-                print(f"\n✅ 转换完成!")
-                print(f"📝 提取字符数: {char_count:,}")
+                print(f"✅ 转换完成! 提取字符数: {char_count:,}")
             else:
-                print(f"\n✅ 转换完成!")
+                print("✅ 转换完成!")
 
             result = {
                 "success": True,
@@ -317,30 +295,24 @@ async def convert_pdf_task(
     pdf_path: str, task_id: str, config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    执行PDF转换任务 - 使用新配置格式
+    执行PDF转换任务
 
     Args:
         pdf_path: PDF文件路径
         task_id: 任务ID
-        config: 转换配置（新格式）
+        config: 转换配置
 
     Returns:
         转换结果
     """
-    try:
-        # 直接使用新配置格式
-        converter = MarkerPDFConverter(config=config)
+    # 直接使用配置
+    converter = MarkerPDFConverter(config=config)
 
-        # 简化的配置日志
-        output_format = config.get("output_format", "markdown")
-        gpu_enabled = config.get("gpu_config", {}).get("enabled", False)
-        print(f"🔧 转换配置: 格式={output_format}, GPU={gpu_enabled}")
+    # 简化的配置日志
+    output_format = config.get("output_format", "markdown")
+    gpu_enabled = config.get("gpu_config", {}).get("enabled", False)
+    print(f"🔧 转换配置: 格式={output_format}, GPU={gpu_enabled}")
 
-    except Exception as e:
-        print(f"❌ 配置处理失败: {str(e)}")
-        # 使用默认配置作为后备
-        converter = MarkerPDFConverter()
-        print("⚠️ 使用默认配置继续转换")
-
-    output_dir = FileHandler.ensure_output_directory(task_id)
+    file_handler = FileHandler()
+    output_dir = file_handler.ensure_output_directory(task_id)
     return await converter.convert_pdf_async(pdf_path, task_id, output_dir)

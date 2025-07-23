@@ -130,25 +130,24 @@
                         </div>
                         <div class="config-item">
                             <label>
-                                <input type="checkbox" v-model="textConfig.gpu.enabled">
+                                <input type="checkbox" v-model="textConfig.gpu_config.enabled">
                                 启用GPU加速
                             </label>
                         </div>
-                        <div class="config-item" v-if="textConfig.gpu.enabled">
+                        <div class="config-item" v-if="textConfig.gpu_config.enabled">
                             <label>GPU工作进程数:</label>
-                            <input type="number" v-model="textConfig.gpu.num_workers" min="1" max="16">
+                            <input type="number" v-model="textConfig.gpu_config.num_workers" min="1" max="16">
                         </div>
                     </div>
                 </div>
 
                 <!-- 操作按钮 -->
                 <div class="action-buttons">
-                    <button class="btn btn-primary" @click="startConversion" :disabled="!uploadedFile || isConverting">
+                    <button class="btn btn-primary" @click="startConversion"
+                        :disabled="!uploadedFile || isConverting || hasConverted">
                         {{ isConverting ? '转换中...' : '开始转换' }}
                     </button>
-                    <button class="btn btn-outline" @click="resetConfig">
-                        重置配置
-                    </button>
+
                 </div>
             </div>
 
@@ -174,7 +173,8 @@
 
                 <!-- 操作按钮 -->
                 <div class="action-buttons">
-                    <button class="btn btn-primary" @click="startConversion" :disabled="!uploadedFile || isConverting">
+                    <button class="btn btn-primary" @click="startConversion"
+                        :disabled="!uploadedFile || isConverting || hasConverted">
                         {{ isConverting ? '转换中...' : '开始转换' }}
                     </button>
                 </div>

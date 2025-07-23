@@ -33,6 +33,9 @@ createApp({
         const isPreviewExpanded = ref(false)
         const showExpandButton = ref(false)
 
+        // 新增：转换状态跟踪
+        const hasConverted = ref(false)
+
         // 转换配置
         const config = reactive({
             conversion_mode: 'marker',
@@ -43,7 +46,7 @@ createApp({
             save_images: false,
             format_lines: false,
             disable_image_extraction: true,
-            gpu: {
+            gpu_config: {
                 enabled: false,
                 num_devices: 1,
                 num_workers: 4,
@@ -257,30 +260,7 @@ createApp({
             }
         }
 
-        const resetConfig = () => {
-            // 重置为默认配置
-            Object.assign(config, configManager.value?.createDefaultConfig(config.conversion_mode) || {
-                conversion_mode: 'marker',
-                output_format: 'markdown',
-                use_llm: false,
-                force_ocr: false,
-                strip_existing_ocr: true,
-                save_images: false,
-                format_lines: false,
-                disable_image_extraction: true,
-                gpu: {
-                    enabled: false,
-                    num_devices: 1,
-                    num_workers: 4,
-                    torch_device: "cuda",
-                    cuda_visible_devices: "0"
-                }
-            })
 
-            selectedPreset.value = null
-            configValidation.value = null
-            configSummary.value = ''
-        }
 
         const getPresetIcon = (presetName) => {
             const icons = {
@@ -466,6 +446,9 @@ createApp({
                     isPreviewExpanded.value = false
                     showExpandButton.value = false
 
+                    // 设置转换完成状态
+                    hasConverted.value = true
+
                     // 检查预览内容高度
                     setTimeout(checkPreviewHeight, 100)
                 }
@@ -528,6 +511,7 @@ createApp({
             taskId.value = null
             isPreviewExpanded.value = false
             showExpandButton.value = false
+            hasConverted.value = false
             clearError()
         }
 
@@ -576,6 +560,9 @@ createApp({
             showExpandButton,
             previewHeight,
 
+            // 新增：转换状态跟踪
+            hasConverted,
+
             // 配置
             config,
 
@@ -598,7 +585,6 @@ createApp({
             selectPreset,
             switchConversionMode,
             validateCurrentConfig,
-            resetConfig,
             getPresetIcon,
 
             // 文件处理函数

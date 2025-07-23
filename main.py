@@ -4,12 +4,25 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from api.routes import router
-from core.config import settings
+
+# 硬编码配置
+APP_NAME = "PDF转Markdown工具"
+APP_VERSION = "1.0.0"
+HOST = "0.0.0.0"
+PORT = 8001
+DEBUG = True
+WORKERS = 1
+CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+    "http://127.0.0.1:3000",
+]
 
 # 创建FastAPI应用
 app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
+    title=APP_NAME,
+    version=APP_VERSION,
     description="基于marker库的PDF转Markdown工具",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -18,7 +31,7 @@ app = FastAPI(
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,10 +60,10 @@ def main():
     """主函数"""
     uvicorn.run(
         "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        workers=settings.WORKERS,
+        host=HOST,
+        port=PORT,
+        reload=DEBUG,
+        workers=WORKERS,
     )
 
 

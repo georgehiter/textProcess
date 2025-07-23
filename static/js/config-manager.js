@@ -84,7 +84,13 @@ class ConfigManager {
             save_images: false,
             format_lines: false,
             disable_image_extraction: true,
-            gpu: { enabled: false, num_devices: 1, num_workers: 4 }
+            gpu_config: {
+                enabled: false,
+                num_devices: 1,
+                num_workers: 4,
+                torch_device: "cuda",
+                cuda_visible_devices: "0"
+            }
         }
     }
 
@@ -263,7 +269,7 @@ class ConfigManager {
                 save_images: false,
                 format_lines: false,
                 disable_image_extraction: true,
-                gpu: {
+                gpu_config: {
                     enabled: false,
                     num_devices: 1,
                     num_workers: 4,
@@ -296,7 +302,7 @@ class ConfigManager {
         let summary = `${mode.toUpperCase()}模式 - 输出:${format}`
 
         if (mode === 'marker') {
-            const gpuEnabled = config.gpu?.enabled
+            const gpuEnabled = config.gpu_config?.enabled
             const llmEnabled = config.use_llm
             summary += ` (GPU:${gpuEnabled ? '启用' : '禁用'}, LLM:${llmEnabled ? '启用' : '禁用'})`
         } else if (mode === 'ocr') {
@@ -338,7 +344,7 @@ class ConfigManager {
         const suggestions = []
 
         if (config.conversion_mode === 'marker') {
-            const gpuEnabled = config.gpu?.enabled
+            const gpuEnabled = config.gpu_config?.enabled
 
             if (gpuEnabled) {
                 suggestions.push('GPU已启用，确保系统支持CUDA以获得最佳性能')

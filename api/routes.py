@@ -10,12 +10,11 @@ from api.models import (
     OCRConfig,
     ConversionResponse,
 )
-from utils.progress import progress_manager
-from utils.config_factory import ConfigPresets
 from utils.file_handler import FileHandler
+from utils.progress import progress_manager
+from api.services.config_service import ConfigService
 from core.converter import convert_pdf_task
 from core.scan_converter import scan_convert_pdf_task
-from core.config import settings
 
 router = APIRouter()
 
@@ -74,14 +73,20 @@ def find_output_file(
 async def get_config_presets():
     """获取配置预设列表"""
     try:
-        presets_data = ConfigPresets.get_preset_configs()
+        presets_data = ConfigService.get_preset_configs()
         presets = []
 
-        for key, data in presets_data.items():
+        # 预设描述映射
+        preset_descriptions = {
+            "text_pdf": "文本型PDF配置 - 适用于可搜索的PDF文档，使用Marker引擎",
+            "scan_pdf": "扫描型PDF配置 - 适用于图片型PDF文档，使用OCR引擎",
+        }
+
+        for key, config_obj in presets_data.items():
             preset = ConfigPreset(
-                name=data["name"],
-                description=data["description"],
-                config=data["config"],
+                name=key,
+                description=preset_descriptions.get(key, f"{key}配置"),
+                config=config_obj,
             )
             presets.append(preset)
 
@@ -151,8 +156,9 @@ async def start_conversion(
     try:
         task_id = request.task_id
 
-        # 查找文件
-        pdf_files = list(settings.upload_path.glob(f"{task_id}_*"))
+        # 使用 FileHandler 查找文件
+        file_handler = FileHandler()
+        pdf_files = list(file_handler.upload_folder.glob(f"{task_id}_*"))
         if not pdf_files:
             raise HTTPException(status_code=404, detail="未找到上传的文件")
 
@@ -177,14 +183,15 @@ async def start_conversion(
 
         else:  # MarkerConfig
             # 应用GPU配置 - 仅Marker模式需要
-            if request.config.gpu.enabled:
-                settings.apply_gpu_config(request.config.gpu.dict())
+            if request.config.gpu_config.enabled:
+                request.config.apply_gpu_environment()
 
             # Marker转换任务
             background_tasks.add_task(
                 convert_pdf_task, pdf_path=pdf_path, task_id=task_id, config=config_dict
             )
-            message = f"Marker转换任务已启动 (GPU: {'启用' if request.config.gpu.enabled else '禁用'})"
+            gpu_status = "启用" if request.config.gpu_config.enabled else "禁用"
+            message = f"Marker转换任务已启动 (GPU: {gpu_status})"
 
         return ConversionResponse(success=True, task_id=task_id, message=message)
 
@@ -200,7 +207,7 @@ async def start_conversion_with_preset(
     """使用预设配置启动转换"""
     try:
         # 获取预设配置
-        preset_config = ConfigPresets.get_preset_by_name(preset_name)
+        preset_config = ConfigService.get_preset_by_name(preset_name)
 
         # 创建转换请求
         request = ConversionRequest(task_id=task_id, config=preset_config)
@@ -218,14 +225,14 @@ async def start_conversion_with_preset(
 async def upload_file(file: UploadFile = File(...)):
     """文件上传接口"""
     try:
+        # 使用新的 FileHandler 模型
+        file_handler = FileHandler()
+
         # 生成任务ID
-        task_id = FileHandler.generate_task_id()
+        task_id = file_handler.generate_task_id()
 
         # 保存文件
-        success, message, file_path = await FileHandler.save_upload_file(file, task_id)
-
-        if not success:
-            raise HTTPException(status_code=400, detail=message)
+        await file_handler.save_upload_file(file, task_id)
 
         return {
             "success": True,
@@ -234,6 +241,8 @@ async def upload_file(file: UploadFile = File(...)):
             "message": "文件上传成功",
         }
 
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
 
@@ -261,8 +270,9 @@ async def get_progress(task_id: str):
 async def get_result(task_id: str):
     """获取转换结果"""
     try:
-        # 获取输出文件路径
-        output_path = settings.get_output_path(task_id)
+        # 使用 FileHandler 获取输出文件路径
+        file_handler = FileHandler()
+        output_path = file_handler.ensure_output_directory(task_id)
 
         # 动态查找输出文件
         output_file = find_output_file(output_path)
@@ -296,7 +306,9 @@ async def get_result(task_id: str):
 async def download_result(task_id: str):
     """下载转换结果"""
     try:
-        output_path = settings.get_output_path(task_id)
+        # 使用 FileHandler 获取输出文件路径
+        file_handler = FileHandler()
+        output_path = file_handler.ensure_output_directory(task_id)
 
         # 动态查找输出文件
         output_file = find_output_file(output_path)
@@ -326,7 +338,9 @@ async def download_result(task_id: str):
 async def download_images(task_id: str):
     """下载图片包"""
     try:
-        output_path = settings.get_output_path(task_id)
+        # 使用 FileHandler 获取输出文件路径
+        file_handler = FileHandler()
+        output_path = file_handler.ensure_output_directory(task_id)
         image_dir = output_path / "images"
 
         if not image_dir.exists():
@@ -355,7 +369,10 @@ async def download_images(task_id: str):
 async def get_image(task_id: str, filename: str):
     """获取图片文件"""
     try:
-        image_path = settings.get_output_path(task_id) / "images" / filename
+        # 使用 FileHandler 获取图片文件路径
+        file_handler = FileHandler()
+        output_path = file_handler.ensure_output_directory(task_id)
+        image_path = output_path / "images" / filename
 
         if not image_path.exists():
             raise HTTPException(status_code=404, detail="图片文件不存在")

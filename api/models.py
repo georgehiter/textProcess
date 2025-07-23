@@ -1,4 +1,4 @@
-from typing import Union, Literal, List
+from typing import Union, Literal, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 
@@ -12,8 +12,8 @@ class OutputFormat(str, Enum):
     chunks = "chunks"
 
 
-class MarkerGPUConfig(BaseModel):
-    """Marker专用GPU配置"""
+class GPUConfig(BaseModel):
+    """GPU配置模型"""
 
     enabled: bool = Field(default=False, description="是否启用GPU加速")
     num_devices: int = Field(default=1, ge=1, le=8, description="GPU设备数量")
@@ -21,15 +21,19 @@ class MarkerGPUConfig(BaseModel):
     torch_device: str = Field(default="cuda", description="PyTorch设备")
     cuda_visible_devices: str = Field(default="0", description="可见GPU设备")
 
-    @field_validator("enabled")
-    @classmethod
-    def validate_gpu_enabled(cls, v, info):
-        """验证GPU配置"""
-        if v:
-            # 如果启用GPU，检查其他配置
-            if info.data.get("num_devices", 1) > 1:
-                print("⚠️ 多GPU配置可能需要更多内存")
-        return v
+    def apply_environment(self):
+        """应用GPU环境变量"""
+        import os
+
+        if self.enabled:
+            os.environ["NUM_DEVICES"] = str(self.num_devices)
+            os.environ["NUM_WORKERS"] = str(self.num_workers)
+            os.environ["TORCH_DEVICE"] = self.torch_device
+            os.environ["CUDA_VISIBLE_DEVICES"] = self.cuda_visible_devices
+            print(
+                f"🔧 GPU环境变量已应用: 设备数={self.num_devices}, "
+                f"工作进程={self.num_workers}"
+            )
 
 
 class BaseConversionConfig(BaseModel):
@@ -57,10 +61,25 @@ class MarkerConfig(BaseConversionConfig):
         default=True, description="是否禁用图片提取以提升速度"
     )
 
-    # GPU配置 - 仅Marker模式需要
-    gpu: MarkerGPUConfig = Field(
-        default_factory=MarkerGPUConfig, description="GPU加速配置（Marker模式专用）"
-    )
+    # GPU配置 - 使用统一的对象结构
+    gpu_config: GPUConfig = Field(default_factory=GPUConfig, description="GPU配置")
+
+    def apply_gpu_environment(self):
+        """应用GPU环境变量"""
+        self.gpu_config.apply_environment()
+
+    def get_gpu_config_dict(self) -> dict:
+        """获取GPU配置字典"""
+        return self.gpu_config.model_dump()
+
+    def get_gpu_config_summary(self) -> str:
+        """获取GPU配置摘要"""
+        return (
+            f"GPU设备数={self.gpu_config.num_devices}, "
+            f"工作进程数={self.gpu_config.num_workers}, "
+            f"PyTorch设备={self.gpu_config.torch_device}, "
+            f"CUDA可见设备={self.gpu_config.cuda_visible_devices}"
+        )
 
     @model_validator(mode="after")
     def validate_marker_config(self):
