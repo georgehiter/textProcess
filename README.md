@@ -7,7 +7,7 @@
 [![Code Quality](https://img.shields.io/badge/Code%20Quality-A%2B-brightgreen.svg)](https://github.com/your-username/textProcess)
 [![Test Coverage](https://img.shields.io/badge/Test%20Coverage-85%25-brightgreen.svg)](https://github.com/your-username/textProcess)
 
-> 🎯PDF转Markdown解决方案** - 基于双引擎架构（Marker + OCR），提供智能配置管理和自动化转换服务，支持文本版PDF和扫描版PDF的高精度转换
+> 🎯 **PDF转Markdown解决方案** - 基于双引擎架构（Marker + OCR），提供智能配置管理和自动化转换服务，支持文本版PDF和扫描版PDF的高精度转换
 
 ## 📊 项目成熟度指标
 
@@ -186,8 +186,6 @@ git clone <repository-url>
 cd textProcess
 ```
 
-
-
 #### 2. 安装Python依赖
 
 本项目使用 **Poetry** 进行依赖管理，确保环境的一致性和可重现性。
@@ -225,16 +223,7 @@ poetry install --only main
 poetry shell
 ```
 
-##### 2.4 安装可选依赖（GPU加速支持）
-```bash
-# 如果需要GPU加速，安装PyTorch（可选）
-poetry run pip install torch==2.7.1+cu128 torchvision==0.22.1+cu128 torchaudio==2.7.1+cu128 --index-url https://download.pytorch.org/whl/cu128
-
-# 💡 建议：如果不配置显卡环境，可以减少兼容性错误
-# 如果不需要GPU加速，可以跳过PyTorch安装，使用CPU模式即可
-```
-
-##### 2.5 验证依赖安装
+##### 2.4 验证依赖安装
 ```bash
 # 验证所有依赖是否正确安装
 poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect; print('✅ 所有依赖安装成功')"
@@ -270,11 +259,6 @@ poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect;
 # 验证Tesseract
 tesseract --version
 
-# 验证GPU支持（如果安装了PyTorch）
-poetry run python -c "import torch; print(f'PyTorch版本: {torch.__version__}'); print(f'CUDA可用: {torch.cuda.is_available()}')"
-
-# 如果未安装PyTorch，应用将以CPU模式运行
-
 # 验证Poetry环境
 poetry env info
 ```
@@ -291,7 +275,7 @@ python main.py
 # 方式3：使用Poetry运行uvicorn
 poetry run uvicorn main:app --reload --host 0.0.0.0 --port 8001
 
-# 方式4：使用Poetry脚本（如果配置了scripts）
+# 方式4：使用Poetry脚本
 poetry run pdf-converter
 ```
 
@@ -344,17 +328,12 @@ poetry run pdf-converter
 
 #### 主要接口
 
-##### 1. 健康检查
-```bash
-GET /api/health
-```
-
-##### 2. GPU状态查询
+##### 1. GPU状态查询
 ```bash
 GET /api/gpu-status
 ```
 
-##### 3. 文件上传
+##### 2. 文件上传
 ```bash
 POST /api/upload
 Content-Type: multipart/form-data
@@ -362,7 +341,7 @@ Content-Type: multipart/form-data
 file: PDF文件
 ```
 
-##### 4. 开始转换
+##### 3. 开始转换
 ```bash
 POST /api/convert
 Content-Type: application/json
@@ -379,9 +358,21 @@ Content-Type: application/json
       "enabled": false,
       "num_devices": 1,
       "num_workers": 4,
-      "torch_device": "cuda"
+      "torch_device": "cuda",
+      "cuda_visible_devices": "0"
     }
   }
+}
+```
+
+##### 4. 使用预设配置转换
+```bash
+POST /api/convert-with-preset
+Content-Type: application/json
+
+{
+  "task_id": "任务ID",
+  "preset_name": "text_pdf"
 }
 ```
 
@@ -397,11 +388,29 @@ GET /api/result/{task_id}
 
 ##### 7. 下载文件
 ```bash
-# 下载Markdown文件
+# 下载转换后的文件
 GET /api/download/{task_id}
 
 # 下载图片压缩包
 GET /api/download-images/{task_id}
+
+# 获取单个图片
+GET /api/images/{task_id}/{filename}
+```
+
+##### 8. 配置管理
+```bash
+# 获取预设配置
+GET /api/config-presets
+
+# 验证配置
+POST /api/validate-config
+
+# 检查兼容性
+POST /api/check-compatibility
+
+# 自动修复配置
+POST /api/auto-fix-config
 ```
 
 ## 🛠️ 项目结构
@@ -437,7 +446,11 @@ textProcess/
 ├── main.py                 # 应用入口
 ├── pyproject.toml         # 项目配置
 ├── poetry.lock            # 依赖锁定文件
-├── test_report.json       # 测试报告
+├── docs/                  # 项目文档
+│   ├── 技术文档.md        # 技术文档
+│   ├── 设计方案.md        # 设计方案
+│   ├── API接口文档.md     # API接口文档
+│   └── 部署指南.md        # 部署指南
 └── README.md              # 项目文档
 ```
 
@@ -505,7 +518,8 @@ const userConfig = {
         enabled: gpuEnabled,
         num_devices: 1,
         num_workers: 4,
-        torch_device: "cuda"
+        torch_device: "cuda",
+        cuda_visible_devices: "0"
     }
 };
 
@@ -541,10 +555,10 @@ async def start_conversion(request: ConversionRequest, background_tasks: Backgro
     task_id = request.task_id
     
     # 根据配置类型选择转换引擎
-    if config.conversion_mode == "marker":
-        background_tasks.add_task(convert_pdf_task, pdf_path, task_id, config.model_dump())
-    elif config.conversion_mode == "ocr":
+    if isinstance(config, OCRConfig):
         background_tasks.add_task(scan_convert_pdf_task, pdf_path, task_id, config.model_dump())
+    else:  # MarkerConfig
+        background_tasks.add_task(convert_pdf_task, pdf_path, task_id, config.model_dump())
 ```
 
 #### 3. 服务层配置处理 (Python)
@@ -552,60 +566,50 @@ async def start_conversion(request: ConversionRequest, background_tasks: Backgro
 # api/services/config_service.py - 配置服务
 class ConfigService:
     @staticmethod
-    def validate_config(config: ConfigType) -> bool:
-        """验证配置对象的有效性"""
-        if isinstance(config, MarkerConfig):
-            return (
-                config.output_format in ["markdown", "txt", "html"]
-                and isinstance(config.use_llm, bool)
-                and isinstance(config.force_ocr, bool)
-            )
-        return False
+    def get_preset_configs():
+        """获取预设配置"""
+        return {
+            "text_pdf": ConfigService.create_text_pdf_config(),
+            "scan_pdf": ConfigService.create_scan_pdf_config(),
+        }
 
     @staticmethod
-    def apply_config_presets(config: ConfigType) -> ConfigType:
-        """应用配置预设和默认值"""
-        # 应用默认值
-        if not hasattr(config, 'output_format'):
-            config.output_format = "markdown"
-        
-        # 应用GPU配置
-        if hasattr(config, 'gpu_config') and config.gpu_config.enabled:
-            config.gpu_config.apply_environment()
-        
-        return config
+    def create_text_pdf_config():
+        """创建文本型PDF配置"""
+        return MarkerConfig(
+            conversion_mode="marker",
+            output_format="markdown",
+            use_llm=False,
+            force_ocr=False,
+            strip_existing_ocr=True,
+            save_images=False,
+            format_lines=False,
+            disable_image_extraction=True,
+            gpu_config=GPUConfig(enabled=False)
+        )
 ```
 
 #### 4. 转换引擎配置应用 (Python)
 ```python
 # core/converter.py - Marker转换器
-class MarkerPDFConverter:
-    def __init__(self, config: Dict[str, Any]):
-        # 接收并应用配置
-        self.output_format = config.get("output_format", "markdown")
-        self.use_llm = config.get("use_llm", False)
-        self.force_ocr = config.get("force_ocr", False)
-        self.strip_existing_ocr = config.get("strip_existing_ocr", True)
-        self.save_images = config.get("save_images", False)
-        self.format_lines = config.get("format_lines", False)
-        self.disable_image_extraction = config.get("disable_image_extraction", True)
-        self.gpu_config = config.get("gpu_config", {})
-
+def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
+    """Marker PDF转换任务"""
+    try:
         # 应用GPU配置
-        self._apply_gpu_config()
-        self._setup_converter()
-
-    def _apply_gpu_config(self):
-        """应用GPU配置到环境变量"""
-        if not self.gpu_config.get("enabled", False):
-            return
-
-        os.environ.update({
-            "NUM_DEVICES": str(self.gpu_config.get("num_devices", 1)),
-            "NUM_WORKERS": str(self.gpu_config.get("num_workers", 4)),
-            "TORCH_DEVICE": self.gpu_config.get("torch_device", "cuda"),
-            "CUDA_VISIBLE_DEVICES": self.gpu_config.get("cuda_visible_devices", "0"),
-        })
+        if config.get("gpu_config", {}).get("enabled", False):
+            gpu_config = config["gpu_config"]
+            os.environ.update({
+                "NUM_DEVICES": str(gpu_config.get("num_devices", 1)),
+                "NUM_WORKERS": str(gpu_config.get("num_workers", 4)),
+                "TORCH_DEVICE": gpu_config.get("torch_device", "cuda"),
+                "CUDA_VISIBLE_DEVICES": gpu_config.get("cuda_visible_devices", "0"),
+            })
+        
+        # 执行转换
+        # ... 转换逻辑
+    except Exception as e:
+        # 错误处理
+        pass
 ```
 
 ### 配置类型和结构
@@ -872,6 +876,74 @@ CONFIG_VALIDATION_STRICT=true
 - 更新Poetry: `pip install --upgrade poetry`
 - 清理缓存: `poetry cache clear --all`
 - 检查依赖冲突: `poetry check`
+
+## 📊 实际实现状态
+
+### ✅ 已实现功能
+
+#### 核心架构
+- **FastAPI后端**: 完整的RESTful API实现
+- **双引擎架构**: Marker引擎和OCR引擎已实现
+- **配置管理系统**: 基于Pydantic的配置验证和管理
+- **文件处理**: 完整的文件上传、下载、存储功能
+- **进度跟踪**: 实时进度监控和状态管理
+- **前端界面**: Vue.js 3实现的用户界面
+
+#### 技术特性
+- **异步处理**: 使用FastAPI的异步特性
+- **GPU支持**: Marker引擎支持GPU加速
+- **多语言OCR**: 支持中英文混合识别
+- **智能配置**: 基于文档类型的智能配置选择
+- **错误处理**: 完善的错误处理和日志记录
+
+#### API接口
+- **文件管理**: 上传、下载、图片管理
+- **转换控制**: 自定义配置和预设配置转换
+- **进度监控**: 实时进度查询
+- **结果获取**: 转换结果和文件下载
+- **配置管理**: 预设配置、验证、兼容性检查、自动修复
+- **系统状态**: GPU状态查询
+
+### 🔧 技术实现亮点
+
+#### 配置系统实现
+- **Pydantic模型**: 使用Pydantic进行数据验证和序列化
+- **配置继承**: 支持配置的继承和覆盖
+- **预设管理**: 提供文本型和扫描型两种预设配置
+- **验证机制**: 自动配置验证和错误提示
+
+#### OCR引擎实现
+- **Tesseract集成**: 直接集成Tesseract OCR引擎
+- **图像预处理**: 实现对比度增强、锐化、去噪等功能
+- **语言检测**: 使用langdetect进行语言自动检测
+- **智能配置**: 基于文档类型自动选择最优OCR参数
+
+#### 前端实现
+- **Vue.js 3**: 使用Composition API构建响应式界面
+- **拖拽上传**: 支持文件拖拽上传功能
+- **实时进度**: 实现进度条和实时状态更新
+- **结果预览**: 支持Markdown结果预览和图片显示
+
+### 🚧 待优化项目
+
+#### 功能增强
+- **健康检查**: 添加`/api/health`接口
+- **批量操作**: 支持批量文件上传和转换
+- **WebSocket**: 实时进度推送（当前使用轮询）
+- **缓存机制**: 结果缓存和重复转换优化
+- **限流控制**: API访问频率限制
+
+#### 性能优化
+- **智能路由**: 实现文档类型自动检测
+- **性能监控**: 添加详细的性能指标收集
+- **内存优化**: 进一步优化大文件处理
+- **并发控制**: 改进任务队列管理
+
+#### 用户体验
+- **错误提示**: 更友好的错误信息展示
+- **配置向导**: 智能配置推荐
+- **结果预览**: 增强预览功能
+- **历史记录**: 转换历史管理
 
 ## 🤝 贡献指南
 
