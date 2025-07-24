@@ -79,7 +79,7 @@ docs/_build/
 test_*>py
 uploads/*
 outputs/*
-.cursor/rules/*
+.cursor/
 tests/
 materials/
 .cursor/rules/

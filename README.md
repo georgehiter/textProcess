@@ -11,17 +11,18 @@
 
 ## 📊 项目成熟度指标
 
-| 指标 | 状态 | 说明 |
-|------|------|------|
+| 指标         | 状态   | 说明                       |
+| ------------ | ------ | -------------------------- |
 | **代码质量** | 🟢 优秀 | 遵循PEP8规范，类型注解完整 |
-| **测试覆盖** | 🟢 85%+ | 单元测试和集成测试完善 |
-| **文档完整** | 🟢 完整 | API文档、使用指南齐全 |
-| **性能稳定** | 🟢 稳定 | 支持大文件处理，内存优化 |
-| **扩展性** | 🟢 良好 | 模块化设计，易于扩展 |
+| **测试覆盖** | 🟢 85%+ | 单元测试和集成测试完善     |
+| **文档完整** | 🟢 完整 | API文档、使用指南齐全      |
+| **性能稳定** | 🟢 稳定 | 支持大文件处理，内存优化   |
+| **扩展性**   | 🟢 良好 | 模块化设计，易于扩展       |
 
 ## 🎯 适用场景与对象
 
 ### 适用场景
+
 - **学术研究**: 论文、报告、技术文档转换
 - **企业办公**: 合同、手册、培训材料处理
 - **内容创作**: 电子书、博客、技术文章制作
@@ -29,6 +30,7 @@
 - **知识管理**: 文档数字化和结构化存储
 
 ### 目标用户
+
 - **研究人员**: 需要处理大量学术PDF文档
 - **企业用户**: 要求高质量文档转换服务
 - **开发者**: 需要集成PDF转换功能的应用
@@ -38,24 +40,28 @@
 ## ✨ 核心功能
 
 ### 🔄 双引擎架构优势
+
 - **Marker引擎**: 基于Marker PDF库，专用于文本版PDF，保持原始格式和结构，支持GPU加速
 - **OCR引擎**: 基于Tesseract OCR，专用于扫描版PDF，支持中英文智能识别和图像增强
 - **智能路由**: 自动选择最适合的转换引擎，确保最佳转换效果
 - **引擎协同**: 支持引擎间配置共享和结果融合
 
 ### 🤖 智能配置与自动化
+
 - **智能语言检测**: 自动识别文档语言（中文/英文/混合），优化OCR配置
 - **文档类型分析**: 智能分析文档类型（学术论文、技术文档、表格等），自动调整处理策略
 - **配置预设系统**: 提供多种预设配置，支持自定义配置创建和管理
 - **自动优化**: 根据文档特征自动优化转换参数，提升转换质量
 
 ### 🔍 高级识别功能
+
 - **多语言支持**: 支持中文、英文、日文、韩文等多种语言
 - **表格识别**: 智能识别和保持表格结构
 - **图像增强**: 自动优化扫描图像质量，提升OCR识别准确率
 - **文本清理**: 智能清理和格式化转换结果
 
 ### ⚡ 性能优化
+
 - **GPU加速**: 支持CUDA GPU加速，大幅提升Marker模式处理速度
 - **CPU模式**: 兼容性更好，无需配置显卡环境
 - **并行处理**: 多进程并行处理，充分利用系统资源
@@ -63,6 +69,7 @@
 - **实时进度**: 实时显示转换进度和状态
 
 ### 🎛️ 灵活配置
+
 - **转换模式**: Marker模式、OCR模式
 - **输出格式**: Markdown、JSON、HTML、Chunks
 - **GPU配置**: 设备数量、工作进程数、内存限制
@@ -80,6 +87,7 @@
 - **配置统一**: 两个引擎共享统一的配置管理系统
 
 ### 技术栈
+
 - **后端框架**: FastAPI + Uvicorn
 - **PDF处理**: Marker PDF库 (marker-pdf[full])
 - **OCR引擎**: Tesseract OCR + OpenCV + PIL
@@ -160,6 +168,7 @@
 ## 🚀 快速开始
 
 ### 环境要求
+
 - **Python**: 3.11 或更高版本
 - **Poetry**: 1.4.0 或更高版本（用于依赖管理）
 - **操作系统**: Windows 10+, macOS 10.14+, Ubuntu 18.04+
@@ -181,6 +190,7 @@
 ### 安装步骤
 
 #### 1. 克隆项目
+
 ```bash
 git clone <repository-url>
 cd textProcess
@@ -191,6 +201,7 @@ cd textProcess
 本项目使用 **Poetry** 进行依赖管理，确保环境的一致性和可重现性。
 
 ##### 2.1 安装Poetry（如果尚未安装）
+
 ```bash
 # 使用官方安装脚本
 curl -sSL https://install.python-poetry.org | python3 -
@@ -203,6 +214,7 @@ poetry --version
 ```
 
 ##### 2.2 配置Poetry（可选）
+
 ```bash
 # 配置虚拟环境在项目目录内创建（推荐）
 poetry config virtualenvs.in-project true
@@ -212,6 +224,7 @@ poetry config repositories.pytorch https://download.pytorch.org/whl/cu128
 ```
 
 ##### 2.3 安装项目依赖
+
 ```bash
 # 安装所有依赖（包括开发依赖）
 poetry install
@@ -224,6 +237,7 @@ poetry shell
 ```
 
 ##### 2.4 验证依赖安装
+
 ```bash
 # 验证所有依赖是否正确安装
 poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect; print('✅ 所有依赖安装成功')"
@@ -236,6 +250,7 @@ poetry show --tree
 ```
 
 #### 3. 安装Tesseract OCR引擎
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
@@ -252,6 +267,7 @@ brew install tesseract tesseract-lang
 ```
 
 #### 4. 验证安装
+
 ```bash
 # 验证Python依赖
 poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect; print('✅ 所有依赖安装成功')"
@@ -264,6 +280,7 @@ poetry env info
 ```
 
 #### 5. 启动服务
+
 ```bash
 # 方式1：使用Poetry运行（推荐）
 poetry run python main.py
@@ -280,6 +297,7 @@ poetry run pdf-converter
 ```
 
 #### 6. 访问应用
+
 打开浏览器访问: http://localhost:8001
 
 ## 📖 使用指南
@@ -287,34 +305,40 @@ poetry run pdf-converter
 ### Web界面使用
 
 #### 1. 文件上传
+
 - 点击"选择文件"或拖拽PDF文件到上传区域
 - 支持单个PDF文件上传
 - 文件大小建议不超过100MB
 
 #### 2. 转换模式选择
+
 - **文本型PDF**: 适用于包含可复制文本的PDF，使用Marker库转换
 - **扫描型PDF**: 适用于扫描版、图片版PDF，使用OCR识别
 
 #### 3. 配置选项
 
 ##### 文本型PDF配置
+
 - **图片处理方式**: 禁用图片提取、保存图片、处理图片引用
 - **OCR设置**: 强制OCR、去除已有OCR文本
 - **格式设置**: 重新格式化行、使用LLM增强
 - **GPU配置**: 启用GPU加速、设备数量、工作进程数
 
 ##### 扫描型PDF配置
+
 - **OCR质量**: 快速、平衡、准确三种模式
 - **语言设置**: 中文、英文、混合语言
 - **图像增强**: 对比度增强、锐化、去噪
 - **文档类型检测**: 自动检测文档类型并优化配置
 
 #### 4. 开始转换
+
 - 点击"开始转换"按钮
 - 实时查看转换进度
 - 转换完成后查看结果
 
 #### 5. 结果处理
+
 - **预览内容**: 在Web界面预览转换结果
 - **下载Markdown**: 下载转换后的Markdown文件
 - **下载图片**: 下载提取的图片文件（如果有）
@@ -322,6 +346,7 @@ poetry run pdf-converter
 ### API接口使用
 
 #### 基础信息
+
 - **API文档**: http://localhost:8001/docs
 - **ReDoc文档**: http://localhost:8001/redoc
 - **基础URL**: http://localhost:8001/api
@@ -329,11 +354,13 @@ poetry run pdf-converter
 #### 主要接口
 
 ##### 1. GPU状态查询
+
 ```bash
 GET /api/gpu-status
 ```
 
 ##### 2. 文件上传
+
 ```bash
 POST /api/upload
 Content-Type: multipart/form-data
@@ -342,6 +369,7 @@ file: PDF文件
 ```
 
 ##### 3. 开始转换
+
 ```bash
 POST /api/convert
 Content-Type: application/json
@@ -366,6 +394,7 @@ Content-Type: application/json
 ```
 
 ##### 4. 使用预设配置转换
+
 ```bash
 POST /api/convert-with-preset
 Content-Type: application/json
@@ -377,16 +406,19 @@ Content-Type: application/json
 ```
 
 ##### 5. 查询进度
+
 ```bash
 GET /api/progress/{task_id}
 ```
 
 ##### 6. 获取结果
+
 ```bash
 GET /api/result/{task_id}
 ```
 
 ##### 7. 下载文件
+
 ```bash
 # 下载转换后的文件
 GET /api/download/{task_id}
@@ -399,6 +431,7 @@ GET /api/images/{task_id}/{filename}
 ```
 
 ##### 8. 配置管理
+
 ```bash
 # 获取预设配置
 GET /api/config-presets
@@ -470,21 +503,25 @@ Web表单   路由验证   配置服务   引擎应用
 #### 配置传递的完整流程
 
 **1. 用户界面层 (Frontend)**
+
 - 用户在Web界面选择转换模式和配置选项
 - 前端JavaScript收集表单数据并格式化为JSON
 - 通过HTTP请求发送到后端API
 
 **2. API网关层 (API Gateway)**
+
 - FastAPI接收HTTP请求并解析JSON数据
 - 使用Pydantic模型进行数据验证和类型转换
 - 路由将请求转发到相应的服务层
 
 **3. 服务层 (Service Layer)**
+
 - 配置服务接收并处理配置数据
 - 应用配置预设和默认值
 - 执行配置验证和优化
 
 **4. 转换引擎层 (Engine Layer)**
+
 - 转换器接收最终配置并应用
 - 根据配置执行相应的转换逻辑
 - 实时反馈转换进度和状态
@@ -501,6 +538,7 @@ Web表单   路由验证   配置服务   引擎应用
 ### 配置传递代码示例
 
 #### 1. 前端配置收集 (JavaScript)
+
 ```javascript
 // 收集用户配置
 const userConfig = {
@@ -535,6 +573,7 @@ const response = await fetch('/api/convert', {
 ```
 
 #### 2. API层配置验证 (Python)
+
 ```python
 # api/models.py - 配置模型定义
 class MarkerConfig(BaseConversionConfig):
@@ -562,6 +601,7 @@ async def start_conversion(request: ConversionRequest, background_tasks: Backgro
 ```
 
 #### 3. 服务层配置处理 (Python)
+
 ```python
 # api/services/config_service.py - 配置服务
 class ConfigService:
@@ -590,6 +630,7 @@ class ConfigService:
 ```
 
 #### 4. 转换引擎配置应用 (Python)
+
 ```python
 # core/converter.py - Marker转换器
 def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
@@ -615,6 +656,7 @@ def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
 ### 配置类型和结构
 
 #### 1. Marker配置 (MarkerConfig)
+
 适用于文本版PDF的转换配置：
 
 ```python
@@ -638,6 +680,7 @@ def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
 ```
 
 #### 2. OCR配置 (OCRConfig)
+
 适用于扫描版PDF的转换配置：
 
 ```python
@@ -677,12 +720,14 @@ sequenceDiagram
 ### 配置验证和自动修复
 
 #### 配置验证机制
+
 - **字段验证**: 使用Pydantic进行类型和格式验证
 - **逻辑验证**: 检查配置项之间的逻辑关系
 - **兼容性检查**: 验证配置与当前版本的兼容性
 - **性能评估**: 评估配置对性能的影响
 
 #### 自动修复功能
+
 - **缺失字段补全**: 自动补充缺失的配置字段
 - **格式修正**: 修正配置格式错误
 - **版本迁移**: 自动迁移旧版本配置到新格式
@@ -691,6 +736,7 @@ sequenceDiagram
 ### 配置错误处理和调试
 
 #### 常见配置错误
+
 ```python
 # 1. 类型错误
 {
@@ -713,6 +759,7 @@ sequenceDiagram
 ```
 
 #### 错误处理机制
+
 ```python
 # 配置验证和错误处理示例
 try:
@@ -728,6 +775,7 @@ except Exception as e:
 ```
 
 #### 配置调试信息
+
 ```python
 # 启用配置调试模式
 DEBUG_CONFIG = True
@@ -742,6 +790,7 @@ if DEBUG_CONFIG:
 ### 配置继承和覆盖机制
 
 #### 配置层次结构
+
 ```
 默认配置 → 预设配置 → 用户配置 → 运行时配置
     │           │           │           │
@@ -750,6 +799,7 @@ if DEBUG_CONFIG:
 ```
 
 #### 配置合并规则
+
 - **深度合并**: 递归合并嵌套配置对象
 - **类型安全**: 确保合并后的配置类型正确
 - **冲突解决**: 提供明确的配置冲突解决策略
@@ -758,6 +808,7 @@ if DEBUG_CONFIG:
 ### 配置最佳实践
 
 #### 1. 性能优化配置
+
 ```python
 # 高性能配置示例
 marker_config = {
@@ -773,6 +824,7 @@ marker_config = {
 ```
 
 #### 2. 高质量配置
+
 ```python
 # 高质量配置示例
 ocr_config = {
@@ -785,6 +837,7 @@ ocr_config = {
 ```
 
 #### 3. 批量处理配置
+
 ```python
 # 批量处理配置示例
 batch_config = {
@@ -829,8 +882,10 @@ CONFIG_VALIDATION_STRICT=true
 ### 常见问题
 
 #### 1. 依赖安装失败
+
 **问题**: Python依赖包安装失败
 **解决方案**:
+
 - 检查Python版本: `python --version` (需要3.11+)
 - 检查Poetry版本: `poetry --version` (需要1.4.0+)
 - 清理Poetry缓存: `poetry cache clear --all pypi`
@@ -839,38 +894,48 @@ CONFIG_VALIDATION_STRICT=true
 - 如果问题持续，尝试: `poetry install --no-cache`
 
 #### 2. OCR功能不可用
+
 **问题**: OCR转换失败或无法识别
 **解决方案**:
+
 - 检查Tesseract安装: `tesseract --version`
 - 安装中文语言包: `tesseract-ocr-chi-sim`
 - 检查Tesseract路径配置（Windows用户）
 - 验证Python OCR依赖: `python -c "import pytesseract, cv2, PIL; print('OCR依赖正常')"`
 
 #### 3. GPU加速不可用
+
 **问题**: GPU状态显示不可用
 **解决方案**:
+
 - 检查CUDA安装: `nvidia-smi`
 - 确认PyTorch安装: `python -c "import torch; print(torch.__version__)"`
 - 检查CUDA版本兼容性
 - 💡 **简化方案**：如果遇到GPU兼容性问题，建议使用CPU模式，跳过GPU配置
 
 #### 4. 文件上传失败
+
 **问题**: 文件上传失败或超时
 **解决方案**:
+
 - 检查文件大小限制
 - 增加上传超时时间
 - 检查磁盘空间
 
 #### 5. 转换速度慢
+
 **问题**: 转换过程耗时过长
 **解决方案**:
+
 - 启用GPU加速（Marker模式）
 - 调整工作进程数
 - 优化内存配置
 
 #### 6. Poetry环境问题
+
 **问题**: Poetry虚拟环境或依赖管理问题
 **解决方案**:
+
 - 重新创建虚拟环境: `poetry env remove python && poetry install`
 - 检查虚拟环境状态: `poetry env info`
 - 更新Poetry: `pip install --upgrade poetry`
@@ -882,6 +947,7 @@ CONFIG_VALIDATION_STRICT=true
 ### ✅ 已实现功能
 
 #### 核心架构
+
 - **FastAPI后端**: 完整的RESTful API实现
 - **双引擎架构**: Marker引擎和OCR引擎已实现
 - **配置管理系统**: 基于Pydantic的配置验证和管理
@@ -890,6 +956,7 @@ CONFIG_VALIDATION_STRICT=true
 - **前端界面**: Vue.js 3实现的用户界面
 
 #### 技术特性
+
 - **异步处理**: 使用FastAPI的异步特性
 - **GPU支持**: Marker引擎支持GPU加速
 - **多语言OCR**: 支持中英文混合识别
@@ -897,6 +964,7 @@ CONFIG_VALIDATION_STRICT=true
 - **错误处理**: 完善的错误处理和日志记录
 
 #### API接口
+
 - **文件管理**: 上传、下载、图片管理
 - **转换控制**: 自定义配置和预设配置转换
 - **进度监控**: 实时进度查询
@@ -907,18 +975,21 @@ CONFIG_VALIDATION_STRICT=true
 ### 🔧 技术实现亮点
 
 #### 配置系统实现
+
 - **Pydantic模型**: 使用Pydantic进行数据验证和序列化
 - **配置继承**: 支持配置的继承和覆盖
 - **预设管理**: 提供文本型和扫描型两种预设配置
 - **验证机制**: 自动配置验证和错误提示
 
 #### OCR引擎实现
+
 - **Tesseract集成**: 直接集成Tesseract OCR引擎
 - **图像预处理**: 实现对比度增强、锐化、去噪等功能
 - **语言检测**: 使用langdetect进行语言自动检测
 - **智能配置**: 基于文档类型自动选择最优OCR参数
 
 #### 前端实现
+
 - **Vue.js 3**: 使用Composition API构建响应式界面
 - **拖拽上传**: 支持文件拖拽上传功能
 - **实时进度**: 实现进度条和实时状态更新
@@ -927,6 +998,7 @@ CONFIG_VALIDATION_STRICT=true
 ### 🚧 待优化项目
 
 #### 功能增强
+
 - **健康检查**: 添加`/api/health`接口
 - **批量操作**: 支持批量文件上传和转换
 - **WebSocket**: 实时进度推送（当前使用轮询）
@@ -934,12 +1006,14 @@ CONFIG_VALIDATION_STRICT=true
 - **限流控制**: API访问频率限制
 
 #### 性能优化
+
 - **智能路由**: 实现文档类型自动检测
 - **性能监控**: 添加详细的性能指标收集
 - **内存优化**: 进一步优化大文件处理
 - **并发控制**: 改进任务队列管理
 
 #### 用户体验
+
 - **错误提示**: 更友好的错误信息展示
 - **配置向导**: 智能配置推荐
 - **结果预览**: 增强预览功能
@@ -948,6 +1022,7 @@ CONFIG_VALIDATION_STRICT=true
 ## 🤝 贡献指南
 
 ### 贡献方式
+
 1. **Fork** 项目
 2. 创建功能分支: `git checkout -b feature/AmazingFeature`
 3. 提交更改: `git commit -m 'Add some AmazingFeature'`
@@ -955,6 +1030,7 @@ CONFIG_VALIDATION_STRICT=true
 5. 提交 **Pull Request**
 
 ### 开发流程
+
 1. 阅读项目文档和代码规范
 2. 创建issue描述问题或功能需求
 3. 编写代码并添加测试
