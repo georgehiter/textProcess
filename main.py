@@ -10,7 +10,7 @@ APP_NAME = "PDF转Markdown工具"
 APP_VERSION = "1.0.0"
 HOST = "0.0.0.0"
 PORT = 8001
-DEBUG = False
+DEBUG = True
 WORKERS = 1
 CORS_ORIGINS = [
     "http://localhost:3000",

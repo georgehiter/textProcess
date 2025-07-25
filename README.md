@@ -3,9 +3,9 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-username/textProcess)
-[![Code Quality](https://img.shields.io/badge/Code%20Quality-A%2B-brightgreen.svg)](https://github.com/your-username/textProcess)
-[![Test Coverage](https://img.shields.io/badge/Test%20Coverage-85%25-brightgreen.svg)](https://github.com/your-username/textProcess)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/GeorgeHit/textProcess)
+[![Code Quality](https://img.shields.io/badge/Code%20Quality-A%2B-brightgreen.svg)](https://github.com/GeorgeHit/textProcess)
+[![Test Coverage](https://img.shields.io/badge/Test%20Coverage-85%25-brightgreen.svg)](https://github.com/GeorgeHit/textProcess)
 
 > 🎯 **PDF转Markdown解决方案** - 基于双引擎架构（Marker + OCR），提供智能配置管理和自动化转换服务，支持文本版PDF和扫描版PDF的高精度转换
 
@@ -14,7 +14,7 @@
 | 指标         | 状态   | 说明                       |
 | ------------ | ------ | -------------------------- |
 | **代码质量** | 🟢 优秀 | 遵循PEP8规范，类型注解完整 |
-| **测试覆盖** | 🟢 85%+ | 单元测试和集成测试完善     |
+| **测试覆盖** | 🟡 待完善 | 基础功能已实现，测试用例待补充 |
 | **文档完整** | 🟢 完整 | API文档、使用指南齐全      |
 | **性能稳定** | 🟢 稳定 | 支持大文件处理，内存优化   |
 | **扩展性**   | 🟢 良好 | 模块化设计，易于扩展       |
@@ -41,17 +41,18 @@
 
 ### 🔄 双引擎架构优势
 
-- **Marker引擎**: 基于Marker PDF库，专用于文本版PDF，保持原始格式和结构，支持GPU加速
-- **OCR引擎**: 基于Tesseract OCR，专用于扫描版PDF，支持中英文智能识别和图像增强
-- **智能路由**: 自动选择最适合的转换引擎，确保最佳转换效果
+- **Marker引擎**: 基于Marker PDF库，专用于文本版PDF，保持原始格式和结构，支持GPU加速和LLM增强
+- **OCR引擎**: 基于Tesseract OCR，专用于扫描版PDF，支持中英文智能识别、图像增强和文档类型检测
+- **智能路由**: 根据PDF类型自动选择最适合的转换引擎，确保最佳转换效果
 - **引擎协同**: 支持引擎间配置共享和结果融合
 
 ### 🤖 智能配置与自动化
 
 - **智能语言检测**: 自动识别文档语言（中文/英文/混合），优化OCR配置
 - **文档类型分析**: 智能分析文档类型（学术论文、技术文档、表格等），自动调整处理策略
-- **配置预设系统**: 提供多种预设配置，支持自定义配置创建和管理
+- **配置预设系统**: 提供文本型和扫描型两种预设配置，支持自定义配置创建和管理
 - **自动优化**: 根据文档特征自动优化转换参数，提升转换质量
+- **LLM增强**: 支持DashScope LLM服务，提升文本识别准确性
 
 ### 🔍 高级识别功能
 
@@ -59,6 +60,7 @@
 - **表格识别**: 智能识别和保持表格结构
 - **图像增强**: 自动优化扫描图像质量，提升OCR识别准确率
 - **文本清理**: 智能清理和格式化转换结果
+- **文档类型检测**: 自动检测学术论文、技术文档、表格等文档类型
 
 ### ⚡ 性能优化
 
@@ -74,6 +76,7 @@
 - **输出格式**: Markdown、JSON、HTML、Chunks
 - **GPU配置**: 设备数量、工作进程数、内存限制
 - **OCR设置**: 强制OCR、图像质量增强、文本清理
+- **LLM配置**: DashScope服务集成，提升识别准确性
 
 ## 🏗️ 技术架构
 
@@ -96,6 +99,7 @@
 - **图像处理**: OpenCV + PIL
 - **语言检测**: langdetect
 - **配置管理**: Pydantic + 自定义配置服务
+- **LLM服务**: DashScope API集成
 
 ### 系统架构
 
@@ -176,6 +180,7 @@
 - **GPU**: 可选，支持CUDA的NVIDIA显卡（用于GPU加速）
 - **Tesseract**: 用于OCR功能（Windows用户需要单独安装）
 - **网络**: 需要网络连接下载Python依赖包
+- **DashScope**: 可选，用于LLM增强功能（需要API密钥）
 
 ### 为什么选择Poetry？
 
@@ -240,7 +245,7 @@ poetry shell
 
 ```bash
 # 验证所有依赖是否正确安装
-poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect; print('✅ 所有依赖安装成功')"
+poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect, dashscope; print('✅ 所有依赖安装成功')"
 
 # 查看已安装的依赖
 poetry show
@@ -270,7 +275,7 @@ brew install tesseract tesseract-lang
 
 ```bash
 # 验证Python依赖
-poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect; print('✅ 所有依赖安装成功')"
+poetry run python -c "import fastapi, marker, pytesseract, cv2, PIL, langdetect, dashscope; print('✅ 所有依赖安装成功')"
 
 # 验证Tesseract
 tesseract --version
@@ -323,6 +328,7 @@ poetry run pdf-converter
 - **OCR设置**: 强制OCR、去除已有OCR文本
 - **格式设置**: 重新格式化行、使用LLM增强
 - **GPU配置**: 启用GPU加速、设备数量、工作进程数
+- **LLM配置**: DashScope服务集成，提升识别准确性
 
 ##### 扫描型PDF配置
 
@@ -330,6 +336,7 @@ poetry run pdf-converter
 - **语言设置**: 中文、英文、混合语言
 - **图像增强**: 对比度增强、锐化、去噪
 - **文档类型检测**: 自动检测文档类型并优化配置
+- **智能配置**: 基于文档类型自动选择最优OCR参数
 
 #### 4. 开始转换
 
@@ -382,6 +389,7 @@ Content-Type: application/json
     "force_ocr": false,
     "save_images": false,
     "enhance_quality": true,
+    "use_llm": false,  // 是否使用LLM增强
     "gpu_config": {
       "enabled": false,
       "num_devices": 1,
@@ -436,7 +444,6 @@ POST /api/auto-fix-config
 ```
 textProcess/
 ├── api/                    # API接口模块
-│   ├── __init__.py
 │   ├── models.py          # 数据模型和配置类
 │   └── routes.py          # 路由定义和API端点
 
@@ -455,6 +462,7 @@ textProcess/
 │   └── js/                # JavaScript库
 │       ├── vue.global.js
 │       ├── marked.min.js
+│       ├── github.min.css
 │       └── config-manager.js
 ├── uploads/                # 上传文件目录
 ├── outputs/                # 输出文件目录
@@ -466,6 +474,12 @@ textProcess/
 │   ├── 技术文档.md        # 技术文档
 │   ├── 设计方案.md        # 设计方案
 │   ├── API接口文档.md     # API接口文档
+│   ├── DashScope服务接口文档.md # DashScope服务文档
+│   ├── LLM功能使用指南.md # LLM功能指南
+│   ├── Windows环境Poetry指南.md # Windows环境指南
+│   ├── CODE_OF_CONDUCT.md # 行为准则
+│   ├── CONTRIBUTING.md    # 贡献指南
+│   ├── gpu_cuda.txt       # GPU配置说明
 │   └── 部署指南.md        # 部署指南
 └── README.md              # 项目文档
 ```
@@ -646,7 +660,7 @@ def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
 {
     "conversion_mode": "marker",
     "output_format": "markdown",
-    "use_llm": false,
+    "use_llm": false,  // 是否使用DashScope LLM增强
     "force_ocr": false,
     "strip_existing_ocr": true,
     "save_images": false,
@@ -673,7 +687,7 @@ def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
     "enhance_quality": true,
     "language_detection": true,
     "document_type_detection": true,
-    "ocr_quality": "balanced",
+    "ocr_quality": "balanced",  // "fast", "balanced", "accurate"
     "target_languages": ["chi_sim", "eng"]
 }
 ```
@@ -823,6 +837,7 @@ batch_config = {
     "conversion_mode": "marker",
     "disable_image_extraction": True,
     "format_lines": False,
+    "use_llm": False,  // 批量处理时建议关闭LLM以提升速度
     "gpu_config": {
         "enabled": True,
         "num_workers": 4
@@ -937,6 +952,7 @@ CONFIG_VALIDATION_STRICT=true
 
 - **异步处理**: 使用FastAPI的异步特性
 - **GPU支持**: Marker引擎支持GPU加速
+- **LLM增强**: 集成DashScope服务，提升识别准确性
 - **多语言OCR**: 支持中英文混合识别
 - **智能配置**: 基于文档类型的智能配置选择
 - **错误处理**: 完善的错误处理和日志记录
@@ -964,6 +980,7 @@ CONFIG_VALIDATION_STRICT=true
 - **Tesseract集成**: 直接集成Tesseract OCR引擎
 - **图像预处理**: 实现对比度增强、锐化、去噪等功能
 - **语言检测**: 使用langdetect进行语言自动检测
+- **文档类型检测**: 自动检测学术论文、技术文档、表格等类型
 - **智能配置**: 基于文档类型自动选择最优OCR参数
 
 #### 前端实现
@@ -982,6 +999,7 @@ CONFIG_VALIDATION_STRICT=true
 - **WebSocket**: 实时进度推送（当前使用轮询）
 - **缓存机制**: 结果缓存和重复转换优化
 - **限流控制**: API访问频率限制
+- **LLM配置**: DashScope API密钥管理和配置界面
 
 #### 性能优化
 
@@ -996,6 +1014,7 @@ CONFIG_VALIDATION_STRICT=true
 - **配置向导**: 智能配置推荐
 - **结果预览**: 增强预览功能
 - **历史记录**: 转换历史管理
+- **LLM状态**: 显示LLM服务连接状态和配置
 
 ## 🤝 贡献指南
 
@@ -1026,12 +1045,13 @@ CONFIG_VALIDATION_STRICT=true
 - [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) - OCR识别引擎
 - [Vue.js](https://vuejs.org/) - 渐进式JavaScript框架
 - [PyTorch](https://pytorch.org/) - 深度学习框架
+- [DashScope](https://dashscope.aliyun.com/) - 阿里云LLM服务
 
 ## 📞 联系我们
 
-- **项目主页**: [GitHub Repository](https://github.com/your-username/textProcess)
-- **问题反馈**: [Issues](https://github.com/your-username/textProcess/issues)
-- **功能建议**: [Discussions](https://github.com/your-username/textProcess/discussions)
+- **项目主页**: [GitHub Repository](https://github.com/GeorgeHit/textProcess)
+- **问题反馈**: [Issues](https://github.com/GeorgeHit/textProcess/issues)
+- **功能建议**: [Discussions](https://github.com/GeorgeHit/textProcess/discussions)
 
 ---
 
