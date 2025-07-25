@@ -32,6 +32,9 @@ class MarkerPDFConverter:
         self.strip_existing_ocr = config.get("strip_existing_ocr", True)
         self.gpu_config = config.get("gpu_config", {})
 
+        # 保存LLM服务配置
+        self.llm_service = config.get("llm_service")
+
         self.converter = None
 
         # 应用GPU配置
@@ -64,6 +67,10 @@ class MarkerPDFConverter:
             "strip_existing_ocr": self.strip_existing_ocr,
         }
 
+        # 如果用户开启LLM，自动绑定DashScope服务
+        if self.use_llm:
+            config["llm_service"] = "marker.services.dashscope.DashScopeService"
+
         # 添加调试日志
         print("🔍 [DEBUG] 转换器配置:")
         print(f"   - force_ocr: {self.force_ocr}")
@@ -73,14 +80,27 @@ class MarkerPDFConverter:
         print(f"   - disable_image_extraction: " f"{self.disable_image_extraction}")
         print(f"   - gpu_enabled: {self.gpu_config.get('enabled', False)}")
 
+        # 添加LLM状态调试信息
+        print(f"   - use_llm: {self.use_llm}")
+        if self.use_llm:
+            print("   - llm_service: marker.services.dashscope.DashScopeService")
+            print("   - LLM状态: ✅ 已启用 (DashScope)")
+        else:
+            print("   - LLM状态: ❌ 未启用")
+
         config_parser = ConfigParser(config)
+
+        # 只有在启用LLM时才传递服务
+        llm_service = None
+        if self.use_llm:
+            llm_service = config_parser.get_llm_service()
 
         self.converter = PdfConverter(
             config=config_parser.generate_config_dict(),
             artifact_dict=create_model_dict(),
             processor_list=config_parser.get_processors(),
             renderer=config_parser.get_renderer(),
-            llm_service=config_parser.get_llm_service() if self.use_llm else None,
+            llm_service=llm_service,
         )
 
     async def convert_pdf_async(

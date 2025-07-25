@@ -527,6 +527,11 @@ createApp({
         onMounted(async () => {
             await loadGPUStatus()
             await initConfigManager()
+
+            // 初始化文本配置
+            if (configManager.value) {
+                textConfig.value = configManager.value.getDefaultTextConfig()
+            }
         })
 
         return {

@@ -112,6 +112,12 @@
                     <div class="config-grid">
                         <div class="config-item">
                             <label>
+                                <input type="checkbox" v-model="textConfig.use_llm">
+                                🤖 启用LLM增强（提高准确性）
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>
                                 <input type="checkbox" v-model="textConfig.force_ocr">
                                 强制使用OCR（通常不推荐）
                             </label>
