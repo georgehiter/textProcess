@@ -41,6 +41,30 @@ class MarkerPDFConverter:
         self._apply_gpu_config()
         self._setup_converter()
 
+    def _check_llm_service_available(self) -> bool:
+        """
+        检测LLM服务是否可用
+
+        Returns:
+            bool: True表示LLM服务可用，False表示不可用
+        """
+        try:
+            # 尝试导入DashScope服务
+            from marker.services.dashscope import DashScopeService
+
+            # 验证导入成功（避免未使用导入警告）
+            _ = DashScopeService
+            return True
+        except ImportError as e:
+            print(f"⚠️  LLM服务检测失败: {e}")
+            print("   - 缺少 marker.services.dashscope.DashScopeService")
+            print("   - LLM功能将被自动禁用")
+            return False
+        except Exception as e:
+            print(f"⚠️  LLM服务检测异常: {e}")
+            print("   - LLM功能将被自动禁用")
+            return False
+
     def _apply_gpu_config(self):
         """应用GPU配置"""
         if not self.gpu_config.get("enabled", False):
@@ -58,6 +82,14 @@ class MarkerPDFConverter:
 
     def _setup_converter(self):
         """设置转换器配置"""
+        # 检测LLM服务可用性
+        llm_service_available = self._check_llm_service_available()
+
+        # 如果用户开启了LLM但服务不可用，自动禁用
+        if self.use_llm and not llm_service_available:
+            print("🔄 自动禁用LLM功能（服务不可用）")
+            self.use_llm = False
+
         config = {
             "output_format": self.output_format,
             "disable_image_extraction": self.disable_image_extraction,
@@ -86,7 +118,10 @@ class MarkerPDFConverter:
             print("   - llm_service: marker.services.dashscope.DashScopeService")
             print("   - LLM状态: ✅ 已启用 (DashScope)")
         else:
-            print("   - LLM状态: ❌ 未启用")
+            if llm_service_available:
+                print("   - LLM状态: ❌ 未启用")
+            else:
+                print("   - LLM状态: ❌ 已禁用 (服务不可用)")
 
         config_parser = ConfigParser(config)
 
