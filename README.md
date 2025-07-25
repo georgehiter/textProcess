@@ -393,31 +393,19 @@ Content-Type: application/json
 }
 ```
 
-##### 4. 使用预设配置转换
-
-```bash
-POST /api/convert-with-preset
-Content-Type: application/json
-
-{
-  "task_id": "任务ID",
-  "preset_name": "text_pdf"
-}
-```
-
-##### 5. 查询进度
+##### 4. 查询进度
 
 ```bash
 GET /api/progress/{task_id}
 ```
 
-##### 6. 获取结果
+##### 5. 获取结果
 
 ```bash
 GET /api/result/{task_id}
 ```
 
-##### 7. 下载文件
+##### 6. 下载文件
 
 ```bash
 # 下载转换后的文件
@@ -430,12 +418,9 @@ GET /api/download-images/{task_id}
 GET /api/images/{task_id}/{filename}
 ```
 
-##### 8. 配置管理
+##### 7. 配置管理
 
 ```bash
-# 获取预设配置
-GET /api/config-presets
-
 # 验证配置
 POST /api/validate-config
 
@@ -453,10 +438,8 @@ textProcess/
 ├── api/                    # API接口模块
 │   ├── __init__.py
 │   ├── models.py          # 数据模型和配置类
-│   ├── routes.py          # 路由定义和API端点
-│   └── services/          # 服务层
-│       ├── __init__.py
-│       └── config_service.py
+│   └── routes.py          # 路由定义和API端点
+
 ├── core/                   # 核心功能模块
 │   ├── converter.py       # Marker PDF转换器
 │   └── scan_converter.py  # 扫描转换器
@@ -494,10 +477,10 @@ textProcess/
 本项目的配置系统采用**分层传递机制**，确保配置从用户界面到转换引擎的完整性和一致性：
 
 ```
-用户界面 → API层 → 服务层 → 转换引擎
-    │         │        │         │
-    ▼         ▼        ▼         ▼
-Web表单   路由验证   配置服务   引擎应用
+用户界面 → API层 → 转换引擎
+    │         │         │
+    ▼         ▼         ▼
+Web表单   路由验证   引擎应用
 ```
 
 #### 配置传递的完整流程
@@ -512,13 +495,13 @@ Web表单   路由验证   配置服务   引擎应用
 
 - FastAPI接收HTTP请求并解析JSON数据
 - 使用Pydantic模型进行数据验证和类型转换
-- 路由将请求转发到相应的服务层
+- 路由将请求转发到转换引擎
 
-**3. 服务层 (Service Layer)**
+**3. 配置验证层 (Validation Layer)**
 
-- 配置服务接收并处理配置数据
+- API路由层执行配置验证和优化
 - 应用配置预设和默认值
-- 执行配置验证和优化
+- 确保配置有效性和一致性
 
 **4. 转换引擎层 (Engine Layer)**
 
@@ -600,33 +583,33 @@ async def start_conversion(request: ConversionRequest, background_tasks: Backgro
         background_tasks.add_task(convert_pdf_task, pdf_path, task_id, config.model_dump())
 ```
 
-#### 3. 服务层配置处理 (Python)
+#### 3. 配置验证处理 (Python)
 
 ```python
-# api/services/config_service.py - 配置服务
-class ConfigService:
-    @staticmethod
-    def get_preset_configs():
-        """获取预设配置"""
-        return {
-            "text_pdf": ConfigService.create_text_pdf_config(),
-            "scan_pdf": ConfigService.create_scan_pdf_config(),
-        }
+# api/routes.py - 配置验证
+def _validate_marker_config(config_data: dict) -> ConfigValidationResponse:
+    """验证Marker配置"""
+    errors = []
+    warnings = []
 
-    @staticmethod
-    def create_text_pdf_config():
-        """创建文本型PDF配置"""
-        return MarkerConfig(
-            conversion_mode="marker",
-            output_format="markdown",
-            use_llm=False,
-            force_ocr=False,
-            strip_existing_ocr=True,
-            save_images=False,
-            format_lines=False,
-            disable_image_extraction=True,
-            gpu_config=GPUConfig(enabled=False)
-        )
+    # 检查GPU配置
+    gpu_config = config_data.get("gpu_config", {})
+    if gpu_config.get("enabled", False):
+        if gpu_config.get("num_devices", 1) > 8:
+            warnings.append("GPU设备数量超过8个，可能影响性能")
+        if gpu_config.get("num_workers", 4) > 16:
+            warnings.append("GPU工作进程数超过16个，可能影响性能")
+
+    # 检查LLM配置
+    if config_data.get("use_llm", False):
+        warnings.append("启用LLM可能增加处理时间")
+
+    return ConfigValidationResponse(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        suggestions=["Marker配置验证通过"],
+    )
 ```
 
 #### 4. 转换引擎配置应用 (Python)
@@ -701,19 +684,15 @@ def convert_pdf_task(pdf_path: str, task_id: str, config: dict):
 sequenceDiagram
     participant U as 用户界面
     participant A as API网关
-    participant S as 配置服务
     participant E as 转换引擎
     
     U->>A: 发送配置请求
     A->>A: Pydantic验证
-    A->>S: 转发配置数据
-    S->>S: 应用预设和默认值
-    S->>S: 配置验证和优化
-    S->>E: 传递最终配置
+    A->>A: 配置验证和优化
+    A->>E: 传递最终配置
     E->>E: 应用配置到环境
     E->>E: 执行转换逻辑
-    E->>S: 返回转换结果
-    S->>A: 返回处理结果
+    E->>A: 返回转换结果
     A->>U: 返回响应数据
 ```
 
@@ -872,7 +851,6 @@ UPLOAD_DIR=uploads
 OUTPUT_DIR=outputs
 
 # 配置管理
-CONFIG_PRESET_PATH=configs/presets
 CONFIG_CACHE_ENABLED=true
 CONFIG_VALIDATION_STRICT=true
 ```

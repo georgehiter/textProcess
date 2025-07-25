@@ -4,15 +4,13 @@ from pathlib import Path
 from typing import Optional
 from api.models import (
     ConversionRequest,
-    ConfigPresetsResponse,
-    ConfigPreset,
     ConfigValidationResponse,
     OCRConfig,
     ConversionResponse,
 )
 from utils.file_handler import FileHandler
 from utils.progress import progress_manager
-from api.services.config_service import ConfigService
+
 from core.converter import convert_pdf_task
 from core.scan_converter import scan_convert_pdf_task
 
@@ -69,48 +67,112 @@ def find_output_file(
     return None
 
 
-@router.get("/config-presets", response_model=ConfigPresetsResponse)
-async def get_config_presets():
-    """获取配置预设列表"""
-    try:
-        presets_data = ConfigService.get_preset_configs()
-        presets = []
-
-        # 预设描述映射
-        preset_descriptions = {
-            "text_pdf": "文本型PDF配置 - 适用于可搜索的PDF文档，使用Marker引擎",
-            "scan_pdf": "扫描型PDF配置 - 适用于图片型PDF文档，使用OCR引擎",
-        }
-
-        for key, config_obj in presets_data.items():
-            preset = ConfigPreset(
-                name=key,
-                description=preset_descriptions.get(key, f"{key}配置"),
-                config=config_obj,
-            )
-            presets.append(preset)
-
-        return ConfigPresetsResponse(presets=presets)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取配置预设失败: {str(e)}")
-
-
 @router.post("/validate-config", response_model=ConfigValidationResponse)
 async def validate_config(config_data: dict):
     """验证配置有效性"""
     try:
-        # 简化的配置验证
-        response = ConfigValidationResponse(
+        # 检查必需字段
+        required_fields = ["conversion_mode"]
+        missing_fields = [
+            field for field in required_fields if field not in config_data
+        ]
+
+        if missing_fields:
+            return ConfigValidationResponse(
+                valid=False,
+                errors=[f"缺失必需字段: {', '.join(missing_fields)}"],
+                warnings=[],
+                suggestions=["请检查配置格式"],
+            )
+
+        # 检查转换模式
+        conversion_mode = config_data.get("conversion_mode")
+        if conversion_mode not in ["marker", "ocr"]:
+            return ConfigValidationResponse(
+                valid=False,
+                errors=[f"不支持的转换模式: {conversion_mode}"],
+                warnings=[],
+                suggestions=["支持的转换模式: marker, ocr"],
+            )
+
+        # 根据转换模式进行特定验证
+        if conversion_mode == "marker":
+            return _validate_marker_config(config_data)
+        elif conversion_mode == "ocr":
+            return _validate_ocr_config(config_data)
+
+        return ConfigValidationResponse(
             valid=True,
             errors=[],
             warnings=[],
             suggestions=["配置验证通过"],
         )
-        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"配置验证失败: {str(e)}")
+
+
+def _validate_marker_config(config_data: dict) -> ConfigValidationResponse:
+    """验证Marker配置"""
+    errors = []
+    warnings = []
+
+    # 检查GPU配置
+    gpu_config = config_data.get("gpu_config", {})
+    if gpu_config.get("enabled", False):
+        # GPU启用时的验证
+        if gpu_config.get("num_devices", 1) > 8:
+            warnings.append("GPU设备数量超过8个，可能影响性能")
+
+        if gpu_config.get("num_workers", 4) > 16:
+            warnings.append("GPU工作进程数超过16个，可能影响性能")
+
+    # 检查LLM配置
+    if config_data.get("use_llm", False):
+        warnings.append("启用LLM可能增加处理时间")
+
+    # 检查OCR配置冲突
+    if config_data.get("force_ocr", False):
+        warnings.append("Marker模式下启用force_ocr可能不是最佳选择")
+
+    return ConfigValidationResponse(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        suggestions=["Marker配置验证通过"],
+    )
+
+
+def _validate_ocr_config(config_data: dict) -> ConfigValidationResponse:
+    """验证OCR配置"""
+    errors = []
+    warnings = []
+
+    # 检查OCR质量设置
+    ocr_quality = config_data.get("ocr_quality", "balanced")
+    if ocr_quality not in ["fast", "balanced", "accurate"]:
+        errors.append(f"不支持的OCR质量模式: {ocr_quality}")
+
+    # 检查语言配置
+    target_languages = config_data.get("target_languages", ["chi_sim", "eng"])
+    valid_languages = ["chi_sim", "eng", "jpn", "kor"]
+    invalid_languages = [
+        lang for lang in target_languages if lang not in valid_languages
+    ]
+
+    if invalid_languages:
+        errors.append(f"不支持的语言: {', '.join(invalid_languages)}")
+
+    # 检查性能相关配置
+    if config_data.get("enhance_quality", True) and ocr_quality == "accurate":
+        warnings.append("同时启用图像增强和准确模式可能显著增加处理时间")
+
+    return ConfigValidationResponse(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        suggestions=["OCR配置验证通过"],
+    )
 
 
 @router.post("/check-compatibility")
@@ -197,27 +259,6 @@ async def start_conversion(
 
     except Exception as e:
         print(f"❌ [ERROR] 启动转换失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"启动转换失败: {str(e)}")
-
-
-@router.post("/convert-with-preset", response_model=ConversionResponse)
-async def start_conversion_with_preset(
-    task_id: str, preset_name: str, background_tasks: BackgroundTasks
-):
-    """使用预设配置启动转换"""
-    try:
-        # 获取预设配置
-        preset_config = ConfigService.get_preset_by_name(preset_name)
-
-        # 创建转换请求
-        request = ConversionRequest(task_id=task_id, config=preset_config)
-
-        # 调用转换接口
-        return await start_conversion(request, background_tasks)
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动转换失败: {str(e)}")
 
 

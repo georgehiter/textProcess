@@ -37,13 +37,13 @@
 - `GET /api/gpu-status` - GPU状态查询
 - `POST /api/upload` - 文件上传
 - `POST /api/convert` - 开始转换
-- `POST /api/convert-with-preset` - 使用预设配置转换
+
 - `GET /api/progress/{task_id}` - 查询进度
 - `GET /api/result/{task_id}` - 获取结果
 - `GET /api/download/{task_id}` - 下载转换结果
 - `GET /api/download-images/{task_id}` - 下载图片
 - `GET /api/images/{task_id}/{filename}` - 获取单个图片
-- `GET /api/config-presets` - 获取预设配置
+
 - `POST /api/validate-config` - 验证配置
 - `POST /api/check-compatibility` - 检查兼容性
 - `POST /api/auto-fix-config` - 自动修复配置

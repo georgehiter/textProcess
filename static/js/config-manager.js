@@ -5,7 +5,6 @@
 class ConfigManager {
     constructor() {
         this.apiBase = '/api'
-        this.presets = null
         this.currentConfig = null
         this.selectedMode = null  // 'text' 或 'scan'
         this.textConfig = null   // 文本型PDF的配置
@@ -16,30 +15,11 @@ class ConfigManager {
      */
     async init() {
         try {
-            await this.loadPresets()
+            // 初始化成功，无需加载预设
             return true
         } catch (error) {
             console.error('配置管理器初始化失败:', error)
             return false
-        }
-    }
-
-    /**
-     * 加载配置预设
-     */
-    async loadPresets() {
-        try {
-            const response = await fetch(`${this.apiBase}/config-presets`)
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-            }
-
-            const data = await response.json()
-            this.presets = data.presets
-            return this.presets
-        } catch (error) {
-            console.error('加载配置预设失败:', error)
-            throw error
         }
     }
 
@@ -62,8 +42,7 @@ class ConfigManager {
      */
     async loadTextConfig() {
         try {
-            const preset = this.getPreset('text_pdf')
-            this.textConfig = preset.config
+            this.textConfig = this.getDefaultTextConfig()
             this.currentConfig = { ...this.textConfig }
         } catch (error) {
             console.error('加载文本型PDF配置失败:', error)
@@ -160,21 +139,7 @@ class ConfigManager {
         }
     }
 
-    /**
-     * 获取预设配置
-     */
-    getPreset(presetName) {
-        if (!this.presets) {
-            throw new Error('配置预设未加载')
-        }
 
-        const preset = this.presets.find(p => p.name === presetName)
-        if (!preset) {
-            throw new Error(`未找到预设: ${presetName}`)
-        }
-
-        return preset.config
-    }
 
     /**
      * 验证配置
@@ -313,29 +278,7 @@ class ConfigManager {
         return summary
     }
 
-    /**
-     * 应用配置预设
-     */
-    async applyPreset(presetName) {
-        try {
-            const presetConfig = this.getPreset(presetName)
-            this.currentConfig = presetConfig
 
-            // 验证配置
-            const validation = await this.validateConfig(presetConfig)
-            if (!validation.valid) {
-                console.warn('预设配置验证失败:', validation.errors)
-            }
-
-            return {
-                config: presetConfig,
-                validation: validation
-            }
-        } catch (error) {
-            console.error('应用预设失败:', error)
-            throw error
-        }
-    }
 
     /**
      * 智能配置建议

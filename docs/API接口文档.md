@@ -292,48 +292,7 @@ curl -X POST "http://localhost:8001/api/convert" \
   }'
 ```
 
-### 4.2 使用预设配置转换
-
-#### 接口信息
-- **URL**: `/api/convert-with-preset`
-- **方法**: `POST`
-- **描述**: 使用预设配置开始PDF转换任务
-- **内容类型**: `application/json`
-
-#### 请求体格式
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "preset_name": "text_pdf"
-}
-```
-
-#### 请求字段说明
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| task_id | string | 是 | 任务ID |
-| preset_name | string | 是 | 预设配置名称 |
-
-#### 响应格式
-```json
-{
-  "success": true,
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "message": "Marker转换任务已启动 (GPU: 禁用)"
-}
-```
-
-#### 示例
-```bash
-curl -X POST "http://localhost:8001/api/convert-with-preset" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "550e8400-e29b-41d4-a716-446655440000",
-    "preset_name": "text_pdf"
-  }'
-```
-
-### 4.3 查询进度
+### 4.2 查询进度
 
 #### 接口信息
 - **URL**: `/api/progress/{task_id}`
@@ -368,7 +327,7 @@ curl -X POST "http://localhost:8001/api/convert-with-preset" \
 curl -X GET "http://localhost:8001/api/progress/550e8400-e29b-41d4-a716-446655440000"
 ```
 
-### 4.4 获取结果
+### 4.3 获取结果
 
 #### 接口信息
 - **URL**: `/api/result/{task_id}`
@@ -409,72 +368,7 @@ curl -X GET "http://localhost:8001/api/result/550e8400-e29b-41d4-a716-4466554400
 
 ## 5. 配置管理接口
 
-### 5.1 获取预设配置
-
-#### 接口信息
-- **URL**: `/api/config-presets`
-- **方法**: `GET`
-- **描述**: 获取所有预设配置
-
-#### 请求参数
-无
-
-#### 响应格式
-```json
-{
-  "presets": [
-    {
-      "name": "text_pdf",
-      "description": "文本型PDF配置 - 适用于可搜索的PDF文档，使用Marker引擎",
-      "config": {
-        "conversion_mode": "marker",
-        "output_format": "markdown",
-        "use_llm": false,
-        "force_ocr": false,
-        "strip_existing_ocr": true,
-        "save_images": false,
-        "format_lines": false,
-        "disable_image_extraction": true,
-        "gpu_config": {
-          "enabled": false,
-          "num_devices": 1,
-          "num_workers": 4,
-          "torch_device": "cuda",
-          "cuda_visible_devices": "0"
-        }
-      }
-    },
-    {
-      "name": "scan_pdf",
-      "description": "扫描型PDF配置 - 适用于图片型PDF文档，使用OCR引擎",
-      "config": {
-        "conversion_mode": "ocr",
-        "output_format": "markdown",
-        "enhance_quality": true,
-        "language_detection": true,
-        "document_type_detection": true,
-        "ocr_quality": "balanced",
-        "target_languages": ["chi_sim", "eng"]
-      }
-    }
-  ]
-}
-```
-
-#### 响应字段说明
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| presets | array | 预设配置列表 |
-| presets[].name | string | 预设名称 |
-| presets[].description | string | 预设描述 |
-| presets[].config | object | 配置参数 |
-
-#### 示例
-```bash
-curl -X GET "http://localhost:8001/api/config-presets"
-```
-
-### 5.2 验证配置
+### 5.1 验证配置
 
 #### 接口信息
 - **URL**: `/api/validate-config`
@@ -535,7 +429,7 @@ curl -X POST "http://localhost:8001/api/validate-config" \
   }'
 ```
 
-### 5.3 检查配置兼容性
+### 5.2 检查配置兼容性
 
 #### 接口信息
 - **URL**: `/api/check-compatibility`
@@ -567,7 +461,7 @@ curl -X POST "http://localhost:8001/api/validate-config" \
 }
 ```
 
-### 5.4 自动修复配置
+### 5.3 自动修复配置
 
 #### 接口信息
 - **URL**: `/api/auto-fix-config`
@@ -674,13 +568,7 @@ curl -X POST "http://localhost:8001/api/convert" \
     }
   }'
 
-# 或使用预设配置转换
-curl -X POST "http://localhost:8001/api/convert-with-preset" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "550e8400-e29b-41d4-a716-446655440000",
-    "preset_name": "text_pdf"
-  }'
+
 ```
 
 #### 步骤4：监控进度
@@ -737,21 +625,7 @@ async function startConversion(taskId, config) {
   return await response.json();
 }
 
-// 使用预设配置
-async function startConversionWithPreset(taskId, presetName) {
-  const response = await fetch('/api/convert-with-preset', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      task_id: taskId,
-      preset_name: presetName
-    })
-  });
-  
-  return await response.json();
-}
+
 ```
 
 #### 监控进度
@@ -884,11 +758,11 @@ print(f"转换完成，包含图片: {result['has_images']}")
 - ✅ **图片下载**: `/api/download-images/{task_id}` - ZIP格式图片包
 - ✅ **图片访问**: `/api/images/{task_id}/{filename}` - 单个图片访问
 - ✅ **转换控制**: `/api/convert` - 自定义配置转换
-- ✅ **预设转换**: `/api/convert-with-preset` - 预设配置转换
+
 - ✅ **进度查询**: `/api/progress/{task_id}` - 实时进度监控
 - ✅ **结果获取**: `/api/result/{task_id}` - 转换结果信息
 - ✅ **GPU状态**: `/api/gpu-status` - GPU可用性检查
-- ✅ **配置管理**: `/api/config-presets` - 预设配置获取
+
 - ✅ **配置验证**: `/api/validate-config` - 配置有效性验证
 - ✅ **兼容性检查**: `/api/check-compatibility` - 环境兼容性检查
 - ✅ **自动修复**: `/api/auto-fix-config` - 配置自动修复

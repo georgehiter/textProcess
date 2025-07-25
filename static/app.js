@@ -21,7 +21,6 @@ createApp({
 
         // 配置管理器
         const configManager = ref(null)
-        const selectedPreset = ref(null)
         const configValidation = ref(null)
         const configSummary = ref('')
 
@@ -212,31 +211,42 @@ createApp({
             }
         }
 
-        const selectPreset = async (presetName) => {
-            try {
-                if (!configManager.value) return
 
-                const result = await configManager.value.applyPreset(presetName)
-                Object.assign(config, result.config)
-                selectedPreset.value = presetName
-                configValidation.value = result.validation
-                configSummary.value = configManager.value.getConfigSummary(config)
-
-                console.log(`应用预设: ${presetName}`)
-            } catch (error) {
-                console.error('应用预设失败:', error)
-                showError(`应用预设失败: ${error.message}`)
-            }
-        }
 
         const switchConversionMode = async (mode) => {
             config.conversion_mode = mode
 
-            // 根据模式选择默认预设
+            // 根据模式应用默认配置
             if (mode === 'marker') {
-                await selectPreset('快速Marker转换')
+                // 应用Marker默认配置
+                Object.assign(config, {
+                    conversion_mode: 'marker',
+                    output_format: 'markdown',
+                    use_llm: false,
+                    force_ocr: false,
+                    strip_existing_ocr: true,
+                    save_images: false,
+                    format_lines: false,
+                    disable_image_extraction: true,
+                    gpu_config: {
+                        enabled: false,
+                        num_devices: 1,
+                        num_workers: 4,
+                        torch_device: "cuda",
+                        cuda_visible_devices: "0"
+                    }
+                })
             } else if (mode === 'ocr') {
-                await selectPreset('快速OCR转换')
+                // 应用OCR默认配置
+                Object.assign(config, {
+                    conversion_mode: 'ocr',
+                    output_format: 'markdown',
+                    enhance_quality: true,
+                    language_detection: true,
+                    document_type_detection: true,
+                    ocr_quality: 'balanced',
+                    target_languages: ['chi_sim', 'eng']
+                })
             }
         }
 
@@ -262,15 +272,7 @@ createApp({
 
 
 
-        const getPresetIcon = (presetName) => {
-            const icons = {
-                '快速Marker转换': '🚀',
-                'GPU加速Marker转换': '🔥',
-                '高精度OCR转换': '🎯',
-                '快速OCR转换': '⚡'
-            }
-            return icons[presetName] || '⚙️'
-        }
+
 
         // 文件处理函数
         const handleDragOver = (e) => {
@@ -552,7 +554,6 @@ createApp({
             hasImages,
             imageCount,
             configManager,
-            selectedPreset,
             configValidation,
             configSummary,
 
@@ -587,10 +588,8 @@ createApp({
             togglePreview,
 
             // 配置管理函数
-            selectPreset,
             switchConversionMode,
             validateCurrentConfig,
-            getPresetIcon,
 
             // 文件处理函数
             handleDragOver,
